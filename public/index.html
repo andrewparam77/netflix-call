@@ -113,7 +113,7 @@
   .tile.leaving { animation: tileOut .3s forwards; }
   @keyframes tileOut { to { opacity: 0; transform: scale(.9); } }
   .tile.speaking { border-color: #2ecc71; box-shadow: 0 0 0 2px rgba(46,204,113,.25); }
-  .tile.admin-hover { border-color: #f5a623; }
+  .tile.locked { border-color: #f5a623; }
 
   .tile video {
     position: absolute; inset: 0; width: 100%; height: 100%;
@@ -143,7 +143,7 @@
   }
   .tile .name .dot { width: 6px; height: 6px; border-radius: 50%; background: #2ecc71; }
   .tile .name.muted .dot { background: #e50914; }
-  .tile .name .crown { font-size: 11px; }
+  .tile .name .crown { color: #f5a623; }
   .tile .mic-off {
     position: absolute; top: 10px; right: 10px;
     background: rgba(229,9,20,.9); width: 26px; height: 26px;
@@ -162,22 +162,17 @@
   }
   .tile.sharing .screen-tag { display: block; }
 
-  /* ---- Админ-оверлей на плитке ---- */
-  .tile .admin-actions {
-    position: absolute; top: 10px; right: 10px;
-    display: none; gap: 6px; z-index: 5;
+  .tile .lock-badges {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    display: none; gap: 6px; z-index: 4;
   }
-  .tile.admin-mode:hover .admin-actions { display: flex; }
-  .admin-action-btn {
-    width: 32px; height: 32px; border-radius: 8px;
-    background: rgba(0,0,0,.8); border: 1px solid #333;
-    color: #fff; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; transition: all .15s;
+  .tile.mic-locked .lock-badges,
+  .tile.cam-locked .lock-badges { display: flex; }
+  .tile .lock-badge {
+    background: rgba(245,166,35,.95); color: #000;
+    font-size: 10px; font-weight: 700; padding: 3px 8px;
+    border-radius: 4px;
   }
-  .admin-action-btn:hover { background: #e50914; border-color: #e50914; }
-  .admin-action-btn.warn:hover { background: #f5a623; border-color: #f5a623; }
-  .admin-action-btn svg { width: 16px; height: 16px; fill: currentColor; }
 
   /* ---- CONTROLS ---- */
   .controls {
@@ -191,10 +186,13 @@
     background: #1c1c22; color: #fff; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     transition: all .15s;
+    position: relative;
   }
   .btn:hover { background: #2a2a32; transform: translateY(-2px); }
   .btn.off { background: #e50914; }
   .btn.off:hover { background: #f6121d; }
+  .btn.locked { background: #f5a623; color: #000; cursor: not-allowed; }
+  .btn.locked:hover { transform: none; background: #f5a623; }
   .btn.leave {
     background: #e50914; width: auto; padding: 0 22px;
     border-radius: 26px; gap: 8px; font-weight: 500; font-size: 14px;
@@ -202,10 +200,19 @@
   .btn.leave:hover { background: #f6121d; }
   .btn svg { width: 22px; height: 22px; fill: currentColor; }
   .btn.leave svg { width: 18px; height: 18px; }
+  .btn .btn-badge {
+    position: absolute; top: -4px; right: -4px;
+    background: #f5a623; color: #000;
+    font-size: 10px; width: 18px; height: 18px;
+    border-radius: 50%; display: none;
+    align-items: center; justify-content: center;
+    font-weight: 700;
+  }
+  .btn.locked .btn-badge { display: flex; }
 
-  /* ---- Настройки: плавающая кнопка справа внизу ---- */
-  .settings-fab {
-    position: fixed; right: 20px; bottom: 100px;
+  /* ---- Настройки: плавающие кнопки ---- */
+  .fab {
+    position: fixed; right: 20px;
     width: 52px; height: 52px; border-radius: 50%;
     background: #1c1c22; border: 1px solid #262630;
     color: #fff; cursor: pointer; z-index: 150;
@@ -213,11 +220,23 @@
     transition: all .2s;
     box-shadow: 0 10px 30px rgba(0,0,0,.5);
   }
-  .settings-fab:hover { background: #2a2a32; transform: rotate(45deg); }
-  .settings-fab svg { width: 22px; height: 22px; fill: currentColor; }
-  .settings-fab.admin { background: linear-gradient(135deg,#f5a623,#e50914); border-color: #f5a623; }
+  .fab:hover { background: #2a2a32; transform: translateY(-2px); }
+  .fab svg { width: 22px; height: 22px; fill: currentColor; }
+  .fab.settings { bottom: 160px; }
+  .fab.settings:hover { transform: rotate(45deg); }
+  .fab.settings.admin { background: linear-gradient(135deg,#f5a623,#e50914); border-color: #f5a623; }
+  .fab.chat { bottom: 100px; }
+  .fab.chat .badge {
+    position: absolute; top: -4px; right: -4px;
+    background: #e50914; color: #fff;
+    font-size: 10px; min-width: 18px; height: 18px;
+    border-radius: 9px; padding: 0 5px;
+    display: none; align-items: center; justify-content: center;
+    font-weight: 700; border: 2px solid #0b0b0f;
+  }
+  .fab.chat .badge.on { display: flex; }
 
-  /* ---- Настройки: выезжающая панель ---- */
+  /* ---- Панель настроек ---- */
   .settings-panel {
     position: fixed; top: 0; right: 0; bottom: 0;
     width: 360px; max-width: 90vw;
@@ -245,12 +264,8 @@
   }
   .settings-close:hover { background: #e50914; }
 
-  .settings-body {
-    flex: 1; overflow-y: auto; padding: 20px;
-  }
-  .settings-section {
-    margin-bottom: 24px;
-  }
+  .settings-body { flex: 1; overflow-y: auto; padding: 20px; }
+  .settings-section { margin-bottom: 24px; }
   .settings-section h3 {
     font-size: 11px; text-transform: uppercase;
     letter-spacing: 1px; color: #777;
@@ -291,20 +306,19 @@
   .settings-btn.warn { background: #f5a623; border-color: #f5a623; color: #000; }
   .settings-btn.warn:hover { background: #ffb733; }
 
-  .settings-hint {
-    font-size: 11px; color: #555; margin-top: 6px;
-    line-height: 1.5;
-  }
+  .settings-hint { font-size: 11px; color: #555; margin-top: 6px; line-height: 1.5; }
 
-  /* Список участников в настройках для админа */
+  /* ---- Список участников (админ) ---- */
   .admin-participants {
-    display: flex; flex-direction: column; gap: 6px;
-    max-height: 240px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 8px;
   }
   .admin-participant {
-    display: flex; align-items: center; gap: 10px;
     background: #0b0b0f; border: 1px solid #262630;
-    border-radius: 8px; padding: 8px 10px;
+    border-radius: 8px; padding: 10px;
+  }
+  .admin-participant .p-head {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 8px;
   }
   .admin-participant .p-avatar {
     width: 32px; height: 32px; border-radius: 50%;
@@ -316,19 +330,101 @@
     font-size: 13px; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis;
   }
-  .admin-participant .p-name .crown { color: #f5a623; }
-  .admin-participant .p-status { font-size: 10px; color: #666; }
+  .admin-participant .p-status { font-size: 10px; color: #666; margin-top: 2px; }
   .admin-participant .p-actions {
-    display: flex; gap: 4px;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
   }
   .admin-participant .p-btn {
-    width: 28px; height: 28px; border-radius: 6px;
     background: #1c1c22; border: none; color: #fff;
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-    font-size: 12px; transition: all .15s;
+    cursor: pointer; padding: 6px 4px; border-radius: 6px;
+    font-size: 10px; transition: all .15s;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 2px;
+    line-height: 1.2;
   }
-  .admin-participant .p-btn:hover { background: #e50914; }
-  .admin-participant .p-btn.mute:hover { background: #f5a623; }
+  .admin-participant .p-btn svg { width: 14px; height: 14px; fill: currentColor; }
+  .admin-participant .p-btn:hover { background: #2a2a32; }
+  .admin-participant .p-btn.active { background: #e50914; }
+  .admin-participant .p-btn.warn.active { background: #f5a623; color: #000; }
+  .admin-participant .p-btn.kick:hover { background: #e50914; }
+  .admin-participant .p-btn.lock-mic.active,
+  .admin-participant .p-btn.lock-cam.active { background: #f5a623; color: #000; }
+
+  /* ---- Чат-панель ---- */
+  .chat-panel {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 380px; max-width: 90vw;
+    background: #15151a; border-left: 1px solid #262630;
+    z-index: 210;
+    transform: translateX(100%);
+    transition: transform .3s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column;
+    box-shadow: -20px 0 60px rgba(0,0,0,.6);
+  }
+  .chat-panel.open { transform: translateX(0); }
+
+  .chat-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px; border-bottom: 1px solid #1c1c22;
+  }
+  .chat-header h2 { font-size: 16px; font-weight: 600; }
+  .chat-header h2 span { color: #e50914; }
+  .chat-messages {
+    flex: 1; overflow-y: auto; padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .chat-msg {
+    display: flex; flex-direction: column;
+    max-width: 80%; animation: msgIn .2s;
+  }
+  @keyframes msgIn { from{opacity:0;transform:translateY(6px)} }
+  .chat-msg.self { align-self: flex-end; }
+  .chat-msg .meta {
+    font-size: 10px; color: #666; margin-bottom: 3px;
+    display: flex; gap: 8px;
+  }
+  .chat-msg.self .meta { justify-content: flex-end; }
+  .chat-msg .bubble {
+    background: #1c1c22; padding: 8px 12px;
+    border-radius: 12px; font-size: 13px;
+    word-wrap: break-word; white-space: pre-wrap;
+    border: 1px solid #262630;
+  }
+  .chat-msg.self .bubble {
+    background: #e50914; border-color: #e50914;
+  }
+  .chat-msg .meta .name { color: #f5a623; font-weight: 600; }
+  .chat-msg.self .meta .name { color: #fff; }
+  .chat-msg.system {
+    align-self: center; max-width: 90%;
+  }
+  .chat-msg.system .bubble {
+    background: transparent; border: none;
+    color: #666; font-size: 11px; font-style: italic;
+    padding: 4px;
+  }
+  .chat-input-wrap {
+    border-top: 1px solid #1c1c22;
+    padding: 12px 16px;
+    display: flex; gap: 8px;
+    background: #0b0b0f;
+  }
+  .chat-input {
+    flex: 1; background: #15151a; color: #fff;
+    border: 1px solid #262630; border-radius: 20px;
+    padding: 10px 16px; font-size: 13px; outline: none;
+    font-family: inherit;
+  }
+  .chat-input:focus { border-color: #e50914; }
+  .chat-send {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: #e50914; border: none; color: #fff;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all .15s; flex-shrink: 0;
+  }
+  .chat-send:hover { background: #f6121d; }
+  .chat-send svg { width: 18px; height: 18px; fill: currentColor; }
 
   /* ---- Toast / Notice ---- */
   .toast {
@@ -416,36 +512,34 @@
     <div class="stage" id="stage"></div>
 
     <div class="controls">
-      <button class="btn" id="btn-mic" title="Микрофон"></button>
-      <button class="btn off" id="btn-cam" title="Камера"></button>
+      <button class="btn" id="btn-mic" title="Микрофон">
+        <span class="btn-badge">🔒</span>
+      </button>
+      <button class="btn off" id="btn-cam" title="Камера">
+        <span class="btn-badge">🔒</span>
+      </button>
       <button class="btn" id="btn-screen" title="Демонстрация экрана">
         <svg viewBox="0 0 24 24"><path d="M21 3H3a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h7v2H8v2h8v-2h-2v-2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 13H3V5h18v11z"/></svg>
-      </button>
-      <button class="btn" id="btn-devices" title="Устройства">
-        <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 12h-2z"/></svg>
       </button>
       <button class="btn leave" id="btn-leave">
         <svg viewBox="0 0 24 24"><path d="M16 8l-1.41 1.41L17.17 12H8v2h9.17l-2.58 2.59L16 18l5-5-5-5zM4 4h8V2H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8v-2H4V4z"/></svg>
         Завершить
       </button>
-
-      <div class="panel" id="panel">
-        <h3>Микрофон</h3>
-        <select id="select-mic"></select>
-        <h3>Динамики / наушники</h3>
-        <select id="select-output"></select>
-        <h3>Камера</h3>
-        <select id="select-cam"></select>
-      </div>
     </div>
   </div>
 
-  <!-- Плавающая кнопка настроек (справа внизу) -->
-  <button class="settings-fab" id="settings-fab" title="Настройки">
+  <!-- FAB: чат -->
+  <button class="fab chat" id="chat-fab" title="Чат">
+    <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM7 9h10v2H7V9zm6 5H7v-2h6v2zm4-6H7V6h10v2z"/></svg>
+    <span class="badge" id="chat-badge">0</span>
+  </button>
+
+  <!-- FAB: настройки -->
+  <button class="fab settings" id="settings-fab" title="Настройки">
     <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87c-.12.21-.07.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
   </button>
 
-  <!-- Выезжающая панель настроек -->
+  <!-- Панель настроек -->
   <div class="settings-panel" id="settings-panel">
     <div class="settings-header">
       <h2>⚙️ <span>Настройки</span></h2>
@@ -453,7 +547,6 @@
     </div>
 
     <div class="settings-body">
-      <!-- Устройства -->
       <div class="settings-section">
         <h3>🎤 Микрофон</h3>
         <select class="settings-select" id="settings-mic"></select>
@@ -469,28 +562,32 @@
         <select class="settings-select" id="settings-cam"></select>
       </div>
 
-      <!-- Админ-секция -->
+      <!-- Админ -->
       <div class="settings-section admin" id="admin-section">
-        <h3>
-          <span class="admin-dot"></span>
-          👑 Админ-панель
-        </h3>
+        <h3><span class="admin-dot"></span>👑 Админ-панель</h3>
 
-        <!-- Форма входа -->
         <div id="admin-login-form">
           <input type="password" class="settings-input" id="admin-password"
                  placeholder="Пароль администратора" autocomplete="off">
           <button class="settings-btn warn" id="admin-login-btn">
             🔑 Войти как админ
           </button>
-          <p class="settings-hint">Введите пароль для получения прав управления.</p>
+          <p class="settings-hint">Пароль: <code>admadm</code></p>
         </div>
 
-        <!-- Панель управления (после логина) -->
         <div id="admin-controls" style="display:none;">
           <p class="settings-hint" style="margin-bottom: 12px; color: #f5a623;">
             ✅ Вы вошли как администратор
           </p>
+
+          <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+            <button class="settings-btn" id="admin-mute-all" style="font-size: 11px; padding: 8px 6px;">
+              🔇 Заглушить всех
+            </button>
+            <button class="settings-btn warn" id="admin-unlock-all" style="font-size: 11px; padding: 8px 6px;">
+              🔓 Разблокировать
+            </button>
+          </div>
 
           <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #777; margin-bottom: 8px;">
             Участники
@@ -508,7 +605,6 @@
         </div>
       </div>
 
-      <!-- Инфо -->
       <div class="settings-section">
         <h3>ℹ️ О звонке</h3>
         <p class="settings-hint">
@@ -517,6 +613,22 @@
           Длительность: <span id="settings-timer">00:00</span>
         </p>
       </div>
+    </div>
+  </div>
+
+  <!-- Панель чата -->
+  <div class="chat-panel" id="chat-panel">
+    <div class="chat-header">
+      <h2>💬 <span>Чат</span></h2>
+      <button class="settings-close" id="chat-close">×</button>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-input-wrap">
+      <input type="text" class="chat-input" id="chat-input"
+             placeholder="Написать сообщение..." maxlength="500" autocomplete="off">
+      <button class="chat-send" id="chat-send">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
     </div>
   </div>
 
@@ -529,9 +641,10 @@ const ICON = {
   micOff: '<svg viewBox="0 0 24 24"><path d="M19 11h-1.7A5.5 5.5 0 0 1 12 16.5c-.3 0-.5 0-.8-.05L9.5 18.2A7 7 0 0 0 11 18.9V21h2v-2.1c2.9-.5 5-3 5-5.9h-2zM4.27 3L3 4.27l6.13 6.13V11a2.9 2.9 0 0 0 2.9 2.9c.32 0 .63-.05.92-.15L15.7 16.5A7 7 0 0 1 12 17.5a5 5 0 0 1-5-5H5a7 7 0 0 0 6 6.92V21h2v-2.1c.78-.14 1.5-.42 2.15-.8L19.73 22 21 20.73 4.27 3z"/></svg>',
   camOn:  '<svg viewBox="0 0 24 24"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>',
   camOff: '<svg viewBox="0 0 24 24"><path d="M21 6.5l-4 4V7a1 1 0 0 0-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/></svg>',
-  mute:   '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>',
-  unmute: '<svg viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>',
-  kick:   '<svg viewBox="0 0 24 24"><path d="M10 17l5-5-5-5v10zm-7-5a9 9 0 1 1 18 0 9 9 0 0 1-18 0zm9-7a7 7 0 1 0 0 14 7 7 0 0 0 0-14z"/></svg>',
+  mute:   '<svg viewBox="0 0 24 24"><path d="M19 11h-1.7A5.5 5.5 0 0 1 12 16.5c-.3 0-.5 0-.8-.05L9.5 18.2A7 7 0 0 0 11 18.9V21h2v-2.1c2.9-.5 5-3 5-5.9h-2zM4.27 3L3 4.27l6.13 6.13V11a2.9 2.9 0 0 0 2.9 2.9c.32 0 .63-.05.92-.15L15.7 16.5A7 7 0 0 1 12 17.5a5 5 0 0 1-5-5H5a7 7 0 0 0 6 6.92V21h2v-2.1c.78-.14 1.5-.42 2.15-.8L19.73 22 21 20.73 4.27 3z"/></svg>',
+  kick:   '<svg viewBox="0 0 24 24"><path d="M10 17l5-5-5-5v10zm-7-5a9 9 0 1 1 18 0 9 9 0 0 1-18 0z"/></svg>',
+  lock:   '<svg viewBox="0 0 24 24"><path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM9 6a3 3 0 0 1 6 0v2H9V6z"/></svg>',
+  unlock: '<svg viewBox="0 0 24 24"><path d="M18 8h-1V6a5 5 0 0 0-9.9-1 1 1 0 0 0 2 .1A3 3 0 0 1 15 6v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2z"/></svg>',
 };
 
 /* ---------- СОСТОЯНИЕ ---------- */
@@ -548,6 +661,8 @@ const app = {
     screen: false,
     color: '#e50914',
     isAdmin: false,
+    micLocked: false,
+    camLocked: false,
   },
   localStream: null,
   audioTrack: null,
@@ -556,6 +671,8 @@ const app = {
   peers: new Map(),
   pendingCandidates: new Map(),
   participants: new Map(),
+  chatUnread: 0,
+  chatOpen: false,
   timerInterval: null,
   startedAt: 0,
   iceServers: [
@@ -598,6 +715,10 @@ function plural(n, one, few, many) {
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function formatTime(ts) {
+  const d = new Date(ts);
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
 
 /* ---------- ЛОББИ ---------- */
 const lobbyState = { mic: true, cam: false };
@@ -624,9 +745,6 @@ async function populateDevices() {
     const cams = devices.filter(d => d.kind === 'videoinput');
     fillSelect($('lobby-select-mic'), mics, 'Микрофон');
     fillSelect($('lobby-select-cam'), cams, 'Камера');
-    fillSelect($('select-mic'), mics, 'Микрофон');
-    fillSelect($('select-output'), spks, 'Устройство вывода');
-    fillSelect($('select-cam'), cams, 'Камера');
     fillSelect($('settings-mic'), mics, 'Микрофон');
     fillSelect($('settings-output'), spks, 'Устройство вывода');
     fillSelect($('settings-cam'), cams, 'Камера');
@@ -709,12 +827,8 @@ $('btn-start').addEventListener('click', async () => {
 });
 
 async function joinCall() {
-  const constraints = {
-    audio: { echoCancellation: true, noiseSuppression: true },
-  };
-  if (lobbyState.cam) {
-    constraints.video = { width: { ideal: 1280 }, height: { ideal: 720 } };
-  }
+  const constraints = { audio: { echoCancellation: true, noiseSuppression: true } };
+  if (lobbyState.cam) constraints.video = { width: { ideal: 1280 }, height: { ideal: 720 } };
 
   try {
     app.localStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -738,6 +852,7 @@ async function joinCall() {
   lobby.classList.add('hidden');
   call.classList.add('active');
   $('settings-fab').style.display = 'flex';
+  $('chat-fab').style.display = 'flex';
   updateMicBtn();
   updateCamBtn();
   renderParticipants();
@@ -755,12 +870,8 @@ function connectWebSocket() {
     $('conn-status').textContent = '● online';
     $('conn-status').classList.add('online');
     app.ws.send(JSON.stringify({
-      type: 'join',
-      id: app.self.id,
-      room: app.room,
-      name: app.self.name,
-      mic: app.self.mic,
-      cam: app.self.cam,
+      type: 'join', id: app.self.id, room: app.room,
+      name: app.self.name, mic: app.self.mic, cam: app.self.cam,
     }));
   };
 
@@ -787,6 +898,9 @@ async function handleWsMessage(msg) {
         addParticipantMeta(p);
         await createOffer(p.id);
       }
+      if (msg.history && msg.history.length) {
+        msg.history.forEach(m => renderChatMessage(m));
+      }
       renderParticipants();
       updateAdminList();
       break;
@@ -795,15 +909,31 @@ async function handleWsMessage(msg) {
       addParticipantMeta(msg);
       renderParticipants();
       showJoinNotice(`${msg.name} присоединился(ась)`);
+      addSystemMessage(`${msg.name} присоединился(ась)`);
       updateAdminList();
       break;
     }
     case 'participant-updated': {
       const p = app.participants.get(msg.id);
-      if (!p) return;
+      if (!p) {
+        // может быть self
+        if (msg.id === app.self.id) {
+          if (msg.isAdmin !== undefined) {
+            app.self.isAdmin = msg.isAdmin;
+            if (msg.isAdmin) {
+              $('admin-badge').classList.add('on');
+              $('settings-fab').classList.add('admin');
+            }
+          }
+        }
+        return;
+      }
       if (msg.mic !== undefined) p.mic = msg.mic;
       if (msg.cam !== undefined) p.cam = msg.cam;
       if (msg.screen !== undefined) p.screen = msg.screen;
+      if (msg.isAdmin !== undefined) p.isAdmin = msg.isAdmin;
+      if (msg.micLocked !== undefined) p.micLocked = msg.micLocked;
+      if (msg.camLocked !== undefined) p.camLocked = msg.camLocked;
       renderParticipants();
       updateAdminList();
       break;
@@ -814,6 +944,11 @@ async function handleWsMessage(msg) {
       break;
     case 'signal':
       await handleSignal(msg.from, msg.data);
+      break;
+
+    /* --- Чат --- */
+    case 'chat':
+      renderChatMessage(msg.msg);
       break;
 
     /* --- Админ-события --- */
@@ -827,6 +962,7 @@ async function handleWsMessage(msg) {
       renderParticipants();
       updateAdminList();
       showToast('👑 Права администратора получены');
+      addSystemMessage('Вы вошли как администратор');
       break;
 
     case 'admin-denied':
@@ -845,8 +981,39 @@ async function handleWsMessage(msg) {
       break;
     }
 
+    case 'force-cam': {
+      if (msg.value === false) {
+        app.self.cam = false;
+        if (app.camTrack) app.camTrack.enabled = false;
+        updateCamBtn();
+        renderParticipants();
+        showToast('📷 Администратор выключил вашу камеру');
+      }
+      break;
+    }
+
+    case 'lock-update': {
+      app.self.micLocked = !!msg.micLocked;
+      app.self.camLocked = !!msg.camLocked;
+      updateMicBtn();
+      updateCamBtn();
+      renderParticipants();
+      if (msg.micLocked) showToast('🔒 Администратор запретил включать микрофон');
+      else showToast('🔓 Микрофон разблокирован');
+      if (msg.camLocked) showToast('🔒 Администратор запретил включать камеру');
+      else showToast('🔓 Камера разблокирована');
+      break;
+    }
+
+    case 'mic-locked-notice':
+      showToast('🔒 Включение микрофона запрещено администратором');
+      break;
+
+    case 'cam-locked-notice':
+      showToast('🔒 Включение камеры запрещено администратором');
+      break;
+
     case 'kicked': {
-      // Показываем оверлей
       const overlay = document.createElement('div');
       overlay.className = 'kicked-overlay';
       overlay.innerHTML = `
@@ -883,6 +1050,8 @@ function addParticipantMeta(p) {
     cam: p.cam ?? false,
     screen: p.screen ?? false,
     isAdmin: p.isAdmin || false,
+    micLocked: p.micLocked || false,
+    camLocked: p.camLocked || false,
     color: randomColor(p.name || p.id),
     stream: null,
   });
@@ -891,12 +1060,8 @@ function addParticipantMeta(p) {
 /* ---------- WEBRTC ---------- */
 function createPeerConnection(peerId) {
   if (app.peers.has(peerId)) return app.peers.get(peerId);
-
   const pc = new RTCPeerConnection({ iceServers: app.iceServers });
-
-  app.localStream.getTracks().forEach(track => {
-    pc.addTrack(track, app.localStream);
-  });
+  app.localStream.getTracks().forEach(track => pc.addTrack(track, app.localStream));
 
   pc.onicecandidate = (e) => {
     if (e.candidate) sendWs({ type: 'signal', to: peerId, data: { candidate: e.candidate } });
@@ -928,7 +1093,6 @@ async function createOffer(peerId) {
 
 async function handleSignal(from, data) {
   let pc = app.peers.get(from);
-
   if (data.sdp) {
     if (data.sdp.type === 'offer') {
       if (!pc) pc = createPeerConnection(from);
@@ -949,7 +1113,6 @@ async function handleSignal(from, data) {
     }
     return;
   }
-
   if (data.candidate) {
     if (pc && pc.remoteDescription && pc.remoteDescription.type) {
       try { await pc.addIceCandidate(data.candidate); } catch {}
@@ -965,7 +1128,6 @@ async function handleSignal(from, data) {
 function renderParticipants() {
   upsertSelfTile();
   app.participants.forEach(p => upsertPeerTile(p));
-
   const total = 1 + app.participants.size;
   $('participant-count').textContent = plural(total, 'участник', 'участника', 'участников');
   $('settings-count').textContent = total;
@@ -981,6 +1143,10 @@ function upsertSelfTile() {
       <video autoplay playsinline muted></video>
       <div class="avatar-fallback hidden"><div class="avatar"></div></div>
       <div class="you-tag">ВЫ</div>
+      <div class="lock-badges">
+        <div class="lock-badge mic-lock-badge" style="display:none;">🔒 МИК</div>
+        <div class="lock-badge cam-lock-badge" style="display:none;">🔒 КАМЕРА</div>
+      </div>
       <div class="mic-off" style="display:none;">🔇</div>
       <div class="name"><span class="dot"></span><span class="crown"></span><span class="name-text"></span></div>
     `;
@@ -991,12 +1157,10 @@ function upsertSelfTile() {
   }
   updateTile(tile, {
     name: app.self.name,
-    mic: app.self.mic,
-    cam: app.self.cam,
-    screen: app.self.screen,
+    mic: app.self.mic, cam: app.self.cam, screen: app.self.screen,
     color: app.self.color,
-    isSelf: true,
-    isAdmin: app.self.isAdmin,
+    isSelf: true, isAdmin: app.self.isAdmin,
+    micLocked: app.self.micLocked, camLocked: app.self.camLocked,
   });
 }
 
@@ -1010,29 +1174,13 @@ function upsertPeerTile(p) {
       <video autoplay playsinline></video>
       <div class="avatar-fallback hidden"><div class="avatar"></div></div>
       <div class="screen-tag">ЭКРАН</div>
-      <div class="admin-actions">
-        <button class="admin-action-btn mute" data-action="mute" title="Заглушить">${ICON.mute}</button>
-        <button class="admin-action-btn" data-action="kick" title="Исключить">${ICON.kick}</button>
+      <div class="lock-badges">
+        <div class="lock-badge mic-lock-badge" style="display:none;">🔒 МИК</div>
+        <div class="lock-badge cam-lock-badge" style="display:none;">🔒 CAM</div>
       </div>
       <div class="mic-off" style="display:none;">🔇</div>
       <div class="name"><span class="dot"></span><span class="crown"></span><span class="name-text"></span></div>
     `;
-    // Обработчики админ-кнопок
-    tile.querySelectorAll('.admin-action-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const action = btn.dataset.action;
-        if (action === 'kick') {
-          if (confirm(`Исключить ${p.name} из звонка?`)) {
-            sendWs({ type: 'admin-kick', targetId: p.id });
-            showToast(`${p.name} исключён`);
-          }
-        } else if (action === 'mute') {
-          sendWs({ type: 'admin-mute', targetId: p.id, value: true });
-          showToast(`${p.name} заглушён`);
-        }
-      });
-    });
     stage.appendChild(tile);
   }
   if (p.stream) {
@@ -1041,17 +1189,14 @@ function upsertPeerTile(p) {
   }
   updateTile(tile, {
     name: p.name,
-    mic: p.mic,
-    cam: p.cam,
-    screen: p.screen,
+    mic: p.mic, cam: p.cam, screen: p.screen,
     color: p.color,
     isAdmin: p.isAdmin,
+    micLocked: p.micLocked, camLocked: p.camLocked,
   });
-  // Включаем режим админа для hover-эффектов
-  tile.classList.toggle('admin-mode', app.isAdmin && p.id !== app.self.id);
 }
 
-function updateTile(tile, { name, mic, cam, screen, color, isSelf = false, isAdmin = false }) {
+function updateTile(tile, { name, mic, cam, screen, color, isSelf = false, isAdmin = false, micLocked = false, camLocked = false }) {
   const video = tile.querySelector('video');
   const fallback = tile.querySelector('.avatar-fallback');
   const avatar = tile.querySelector('.avatar');
@@ -1059,6 +1204,8 @@ function updateTile(tile, { name, mic, cam, screen, color, isSelf = false, isAdm
   const nameText = tile.querySelector('.name-text');
   const crown = tile.querySelector('.crown');
   const micOff = tile.querySelector('.mic-off');
+  const micLockBadge = tile.querySelector('.mic-lock-badge');
+  const camLockBadge = tile.querySelector('.cam-lock-badge');
 
   if (avatar) {
     avatar.textContent = initials(name);
@@ -1076,6 +1223,10 @@ function updateTile(tile, { name, mic, cam, screen, color, isSelf = false, isAdm
   nameEl.classList.toggle('muted', !mic);
   micOff.style.display = mic ? 'none' : 'flex';
   tile.classList.toggle('sharing', !!screen);
+  tile.classList.toggle('mic-locked', micLocked);
+  tile.classList.toggle('cam-locked', camLocked);
+  if (micLockBadge) micLockBadge.style.display = micLocked ? 'block' : 'none';
+  if (camLockBadge) camLockBadge.style.display = camLocked ? 'block' : 'none';
 }
 
 function showJoinNotice(text) {
@@ -1094,15 +1245,87 @@ function removeParticipant(id) {
   app.peers.delete(id);
   app.pendingCandidates.delete(id);
   app.participants.delete(id);
-
   const tile = stage.querySelector(`.tile[data-id="${id}"]`);
   if (tile) {
     tile.classList.add('leaving');
     setTimeout(() => tile.remove(), 300);
   }
   showToast(`${name} покинул(а) звонок`);
+  addSystemMessage(`${name} покинул(а) звонок`);
   renderParticipants();
 }
+
+/* ---------- ЧАТ ---------- */
+function renderChatMessage(m) {
+  if (!m || !m.text) return;
+  const box = $('chat-messages');
+  const el = document.createElement('div');
+  const isSelf = m.from === app.self.id;
+  el.className = 'chat-msg' + (isSelf ? ' self' : '');
+  el.innerHTML = `
+    <div class="meta">
+      <span class="name">${escapeHtml(m.name)}</span>
+      <span>${formatTime(m.time || Date.now())}</span>
+    </div>
+    <div class="bubble">${escapeHtml(m.text)}</div>
+  `;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+  // unread
+  if (!isSelf && !app.chatOpen) {
+    app.chatUnread++;
+    updateChatBadge();
+  }
+}
+
+function addSystemMessage(text) {
+  const box = $('chat-messages');
+  const el = document.createElement('div');
+  el.className = 'chat-msg system';
+  el.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+}
+
+function updateChatBadge() {
+  const b = $('chat-badge');
+  if (app.chatUnread > 0) {
+    b.textContent = app.chatUnread > 9 ? '9+' : app.chatUnread;
+    b.classList.add('on');
+  } else {
+    b.classList.remove('on');
+  }
+}
+
+function sendChat() {
+  const input = $('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  sendWs({ type: 'chat', text });
+  input.value = '';
+}
+
+$('chat-send').addEventListener('click', sendChat);
+$('chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendChat();
+});
+
+$('chat-fab').addEventListener('click', () => {
+  const p = $('chat-panel');
+  p.classList.toggle('open');
+  app.chatOpen = p.classList.contains('open');
+  $('settings-panel').classList.remove('open');
+  if (app.chatOpen) {
+    app.chatUnread = 0;
+    updateChatBadge();
+    setTimeout(() => $('chat-input').focus(), 300);
+  }
+});
+
+$('chat-close').addEventListener('click', () => {
+  $('chat-panel').classList.remove('open');
+  app.chatOpen = false;
+});
 
 /* ---------- АДМИН-ПАНЕЛЬ ---------- */
 function updateAdminList() {
@@ -1114,38 +1337,77 @@ function updateAdminList() {
     const el = document.createElement('div');
     el.className = 'admin-participant';
     el.innerHTML = `
-      <div class="p-avatar" style="background: linear-gradient(135deg, ${p.color}, #000);">
-        ${initials(p.name)}
-      </div>
-      <div class="p-info">
-        <div class="p-name">
-          ${p.isAdmin ? '<span class="crown">👑 </span>' : ''}
-          ${escapeHtml(p.name)}
+      <div class="p-head">
+        <div class="p-avatar" style="background: linear-gradient(135deg, ${p.color}, #000);">
+          ${initials(p.name)}
         </div>
-        <div class="p-status">${p.mic ? '🎤 микрофон вкл' : '🔇 микрофон выкл'} · ${p.cam ? '📹 камера вкл' : '📷 камера выкл'}</div>
+        <div class="p-info">
+          <div class="p-name">${p.isAdmin ? '<span class="crown">👑 </span>' : ''}${escapeHtml(p.name)}</div>
+          <div class="p-status">
+            ${p.mic ? '🎤 вкл' : '🔇 выкл'} · ${p.cam ? '📹 вкл' : '📷 выкл'}
+            ${p.micLocked ? ' · 🔒 мик' : ''}
+            ${p.camLocked ? ' · 🔒 кам' : ''}
+          </div>
+        </div>
       </div>
       <div class="p-actions">
-        <button class="p-btn mute" data-action="mute" data-id="${p.id}" title="Заглушить">${ICON.mute}</button>
-        <button class="p-btn" data-action="kick" data-id="${p.id}" title="Исключить">${ICON.kick}</button>
+        <button class="p-btn ${p.mic ? '' : 'active'}" data-action="mic" data-id="${p.id}" title="Вкл/выкл мик">
+          ${ICON.mute}<span>${p.mic ? 'Выкл мик' : 'Вкл мик'}</span>
+        </button>
+        <button class="p-btn lock-mic ${p.micLocked ? 'active' : ''}" data-action="lockmic" data-id="${p.id}" title="Запретить микрофон">
+          ${p.micLocked ? ICON.lock : ICON.unlock}<span>${p.micLocked ? 'Разблок' : 'Блок мик'}</span>
+        </button>
+        <button class="p-btn kick" data-action="kick" data-id="${p.id}" title="Исключить">
+          ${ICON.kick}<span>Кик</span>
+        </button>
+        <button class="p-btn ${p.cam ? '' : 'active'}" data-action="cam" data-id="${p.id}" title="Вкл/выкл кам">
+          ${ICON.camOff}<span>${p.cam ? 'Выкл кам' : 'Вкл кам'}</span>
+        </button>
+        <button class="p-btn lock-cam ${p.camLocked ? 'active' : ''}" data-action="lockcam" data-id="${p.id}" title="Запретить камеру">
+          ${p.camLocked ? ICON.lock : ICON.unlock}<span>${p.camLocked ? 'Разблок' : 'Блок кам'}</span>
+        </button>
+        <button class="p-btn" data-action="mute" data-id="${p.id}" title="Заглушить разово">
+          ${ICON.mute}<span>Заглушить</span>
+        </button>
       </div>
     `;
+
     el.querySelectorAll('.p-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const action = btn.dataset.action;
         const id = btn.dataset.id;
         const target = app.participants.get(id);
         if (!target) return;
-        if (action === 'kick') {
-          if (confirm(`Исключить ${target.name} из звонка?`)) {
-            sendWs({ type: 'admin-kick', targetId: id });
-            showToast(`${target.name} исключён`);
-          }
-        } else if (action === 'mute') {
-          sendWs({ type: 'admin-mute', targetId: id, value: true });
-          showToast(`${target.name} заглушён`);
+
+        switch (action) {
+          case 'kick':
+            if (confirm(`Исключить ${target.name} из звонка?`)) {
+              sendWs({ type: 'admin-kick', targetId: id });
+              showToast(`${target.name} исключён`);
+            }
+            break;
+          case 'mute':
+            sendWs({ type: 'admin-mute', targetId: id, value: true });
+            showToast(`${target.name} заглушён`);
+            break;
+          case 'mic':
+            sendWs({ type: 'admin-mute', targetId: id, value: target.mic });
+            showToast(`${target.name}: микрофон ${target.mic ? 'выкл' : 'вкл'}`);
+            break;
+          case 'cam':
+            sendWs({ type: 'admin-cam', targetId: id, value: !target.cam });
+            showToast(`${target.name}: камера ${target.cam ? 'выкл' : 'вкл'}`);
+            break;
+          case 'lockmic':
+            sendWs({ type: 'admin-lock-mic', targetId: id, locked: !target.micLocked });
+            break;
+          case 'lockcam':
+            sendWs({ type: 'admin-lock-cam', targetId: id, locked: !target.camLocked });
+            break;
         }
       });
     });
+
     list.appendChild(el);
   });
 
@@ -1154,7 +1416,6 @@ function updateAdminList() {
   }
 }
 
-/* Обработчики админ-формы */
 $('admin-login-btn').addEventListener('click', () => {
   const pw = $('admin-password').value;
   if (!pw) { showToast('Введите пароль'); return; }
@@ -1173,9 +1434,6 @@ $('admin-logout').addEventListener('click', () => {
   $('admin-login-form').style.display = 'block';
   $('admin-controls').style.display = 'none';
   $('admin-password').value = '';
-  // Убираем admin-mode со всех плиток
-  stage.querySelectorAll('.tile').forEach(t => t.classList.remove('admin-mode'));
-  renderParticipants();
   showToast('Вы вышли из админки');
 });
 
@@ -1186,21 +1444,39 @@ $('admin-end-all').addEventListener('click', () => {
   }
 });
 
+$('admin-mute-all').addEventListener('click', () => {
+  if (!app.isAdmin) return;
+  sendWs({ type: 'admin-mute-all' });
+  showToast('Все заглушены');
+});
+
+$('admin-unlock-all').addEventListener('click', () => {
+  if (!app.isAdmin) return;
+  sendWs({ type: 'admin-unlock-all' });
+  showToast('Все разблокированы');
+});
+
 /* ---------- КНОПКИ ---------- */
 function updateMicBtn() {
   const b = $('btn-mic');
   b.classList.toggle('off', !app.self.mic);
-  b.innerHTML = app.self.mic ? ICON.micOn : ICON.micOff;
+  b.classList.toggle('locked', app.self.micLocked);
+  b.innerHTML = (app.self.mic ? ICON.micOn : ICON.micOff) + '<span class="btn-badge">🔒</span>';
 }
 function updateCamBtn() {
   const b = $('btn-cam');
   b.classList.toggle('off', !app.self.cam);
-  b.innerHTML = app.self.cam ? ICON.camOn : ICON.camOff;
+  b.classList.toggle('locked', app.self.camLocked);
+  b.innerHTML = (app.self.cam ? ICON.camOn : ICON.camOff) + '<span class="btn-badge">🔒</span>';
 }
 updateMicBtn();
 updateCamBtn();
 
 $('btn-mic').addEventListener('click', () => {
+  if (app.self.micLocked && !app.self.mic) {
+    showToast('🔒 Администратор запретил включать микрофон');
+    return;
+  }
   app.self.mic = !app.self.mic;
   if (app.audioTrack) app.audioTrack.enabled = app.self.mic;
   updateMicBtn();
@@ -1210,6 +1486,10 @@ $('btn-mic').addEventListener('click', () => {
 });
 
 $('btn-cam').addEventListener('click', async () => {
+  if (app.self.camLocked && !app.self.cam) {
+    showToast('🔒 Администратор запретил включать камеру');
+    return;
+  }
   const wantOn = !app.self.cam;
 
   if (wantOn && !app.camTrack) {
@@ -1220,16 +1500,14 @@ $('btn-cam').addEventListener('click', async () => {
       const newTrack = camStream.getVideoTracks()[0];
       app.camTrack = newTrack;
       app.localStream.addTrack(newTrack);
-
       for (const [peerId, pc] of app.peers) {
         pc.addTrack(newTrack, app.localStream);
         try {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           sendWs({ type: 'signal', to: peerId, data: { sdp: pc.localDescription } });
-        } catch (e) { console.warn('renegotiate failed', e); }
+        } catch (e) { console.warn(e); }
       }
-
       const selfTile = stage.querySelector(`.tile[data-id="${app.self.id}"]`);
       if (selfTile) selfTile.querySelector('video').srcObject = app.localStream;
     } catch (e) {
@@ -1251,26 +1529,21 @@ $('btn-screen').addEventListener('click', async () => {
   if (!app.self.screen) {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 30 },
-        audio: false,
+        video: { frameRate: 30 }, audio: false,
       });
       app.screenStream = stream;
       const screenTrack = stream.getVideoTracks()[0];
-
       app.peers.forEach(pc => {
         const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
         if (sender) sender.replaceTrack(screenTrack);
       });
-
       screenTrack.onended = () => stopScreenShare();
-
       const selfTile = stage.querySelector(`.tile[data-id="${app.self.id}"]`);
       if (selfTile) {
         const v = selfTile.querySelector('video');
         v.srcObject = stream;
         v.classList.remove('mirror');
       }
-
       app.self.screen = true;
       $('btn-screen').classList.add('off');
       sendWs({ type: 'update', screen: true });
@@ -1308,20 +1581,11 @@ function stopScreenShare() {
   showToast('Демонстрация остановлена');
 }
 
-/* ---------- ПАНЕЛЬ УСТРОЙСТВ (старая, из нижнего меню) ---------- */
-$('btn-devices').addEventListener('click', (e) => {
-  e.stopPropagation();
-  $('panel').classList.toggle('open');
-});
-document.addEventListener('click', (e) => {
-  if (!$('panel').contains(e.target) && e.target !== $('btn-devices')) {
-    $('panel').classList.remove('open');
-  }
-});
-
-/* ---------- ПАНЕЛЬ НАСТРОЕК (новая, справа) ---------- */
+/* ---------- ПАНЕЛЬ НАСТРОЕК ---------- */
 $('settings-fab').addEventListener('click', () => {
   $('settings-panel').classList.toggle('open');
+  $('chat-panel').classList.remove('open');
+  app.chatOpen = false;
   updateAdminList();
   updateSettingsTimer();
 });
@@ -1338,12 +1602,9 @@ function updateSettingsTimer() {
   }
 }
 
-/* Смена устройств из панели настроек */
 $('settings-mic').addEventListener('change', async (e) => {
   try {
-    const newStream = await navigator.mediaDevices.getUserMedia({
-      audio: { deviceId: { exact: e.target.value } },
-    });
+    const newStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: e.target.value } } });
     const newTrack = newStream.getAudioTracks()[0];
     newTrack.enabled = app.self.mic;
     app.peers.forEach(pc => {
@@ -1379,47 +1640,6 @@ $('settings-cam').addEventListener('change', async (e) => {
 
 $('settings-output').addEventListener('change', () => showToast('Устройство вывода изменено'));
 
-/* Старые селекты (из нижней панели) */
-$('select-mic').addEventListener('change', async (e) => {
-  try {
-    const newStream = await navigator.mediaDevices.getUserMedia({
-      audio: { deviceId: { exact: e.target.value } },
-    });
-    const newTrack = newStream.getAudioTracks()[0];
-    newTrack.enabled = app.self.mic;
-    app.peers.forEach(pc => {
-      const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
-      if (sender) sender.replaceTrack(newTrack);
-    });
-    if (app.audioTrack) app.audioTrack.stop();
-    app.audioTrack = newTrack;
-    showToast('Микрофон изменён');
-  } catch { showToast('Ошибка смены микрофона'); }
-});
-
-$('select-cam').addEventListener('change', async (e) => {
-  try {
-    const newStream = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: { exact: e.target.value }, width: { ideal: 1280 }, height: { ideal: 720 } },
-    });
-    const newTrack = newStream.getVideoTracks()[0];
-    newTrack.enabled = app.self.cam;
-    app.peers.forEach(pc => {
-      const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-      if (sender && !app.self.screen) sender.replaceTrack(newTrack);
-    });
-    if (app.camTrack) app.camTrack.stop();
-    app.camTrack = newTrack;
-    if (!app.self.screen) {
-      const selfTile = stage.querySelector(`.tile[data-id="${app.self.id}"]`);
-      if (selfTile) selfTile.querySelector('video').srcObject = app.localStream;
-    }
-    showToast('Камера изменена');
-  } catch { showToast('Ошибка смены камеры'); }
-});
-
-$('select-output').addEventListener('change', () => showToast('Устройство вывода изменено'));
-
 /* ---------- ЗАВЕРШЕНИЕ ЗВОНКА ---------- */
 $('btn-leave').addEventListener('click', () => {
   if (confirm('Завершить звонок?')) endCall();
@@ -1428,21 +1648,14 @@ $('btn-leave').addEventListener('click', () => {
 function endCall() {
   if (!app.inCall) return;
   app.inCall = false;
-
   sendWs({ type: 'leave' });
   app.peers.forEach(pc => { try { pc.close(); } catch {} });
   app.peers.clear();
   app.pendingCandidates.clear();
   app.participants.clear();
 
-  if (app.localStream) {
-    app.localStream.getTracks().forEach(t => t.stop());
-    app.localStream = null;
-  }
-  if (app.screenStream) {
-    app.screenStream.getTracks().forEach(t => t.stop());
-    app.screenStream = null;
-  }
+  if (app.localStream) { app.localStream.getTracks().forEach(t => t.stop()); app.localStream = null; }
+  if (app.screenStream) { app.screenStream.getTracks().forEach(t => t.stop()); app.screenStream = null; }
   app.audioTrack = null;
   app.camTrack = null;
 
@@ -1450,16 +1663,21 @@ function endCall() {
 
   stopTimer();
   stage.innerHTML = '';
+  $('chat-messages').innerHTML = '';
+  app.chatUnread = 0;
+  updateChatBadge();
 
   call.classList.remove('active');
   lobby.classList.remove('hidden');
   $('settings-panel').classList.remove('open');
+  $('chat-panel').classList.remove('open');
   $('btn-screen').classList.remove('off');
   app.self.screen = false;
 
-  // Сброс админки
   app.isAdmin = false;
   app.self.isAdmin = false;
+  app.self.micLocked = false;
+  app.self.camLocked = false;
   $('admin-badge').classList.remove('on');
   $('settings-fab').classList.remove('admin');
   $('admin-login-form').style.display = 'block';
@@ -1505,6 +1723,7 @@ setInterval(() => {
 
 /* ---------- СТАРТ ---------- */
 $('settings-fab').style.display = 'none';
+$('chat-fab').style.display = 'none';
 initPreview();
 navigator.mediaDevices.addEventListener?.('devicechange', populateDevices);
 window.addEventListener('beforeunload', () => {
