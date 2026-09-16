@@ -249,7 +249,7 @@
       </div>
 
       <button class="btn-primary" id="btn-start">Начать звонок</button>
-      <p class="hint">Микрофон включён, камера выключена по умолчанию.<br>Разрешите доступ к устройствам.</p>
+      <p class="hint">Микрофон включён, камера выключена.<br>Камера запросится только при включении.</p>
     </div>
   </div>
 
@@ -368,17 +368,17 @@ function escapeHtml(s) {
 /* ---------- ЛОББИ ---------- */
 const lobbyState = { mic: true, cam: false };
 let previewStream = null;
+let previewCamStream = null;
 
 async function initPreview() {
+  // Запрашиваем ТОЛЬКО микрофон — камера не трогается пока не включат
   try {
-    previewStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    previewStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (e) {
-    try { previewStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch (e2) { showToast('Нет доступа к камере/микрофону'); return; }
+    showToast('Нет доступа к микрофону');
+    return;
   }
 
-  const v = previewStream.getVideoTracks()[0];
-  if (v) { v.enabled = false; $('preview-video').srcObject = previewStream; }
   const a = previewStream.getAudioTracks()[0];
   if (a) a.enabled = true;
 
@@ -428,16 +428,35 @@ $('lobby-mic').addEventListener('click', () => {
   }
 });
 
-$('lobby-cam').addEventListener('click', () => {
+$('lobby-cam').addEventListener('click', async () => {
   lobbyState.cam = !lobbyState.cam;
   $('lobby-cam').classList.toggle('off', !lobbyState.cam);
   $('lobby-cam').innerHTML = lobbyState.cam ? ICON.camOn : ICON.camOff;
-  if (previewStream) {
-    const t = previewStream.getVideoTracks()[0];
-    if (t) t.enabled = lobbyState.cam;
+
+  if (lobbyState.cam) {
+    // ВКЛючаем — только сейчас запрашиваем камеру
+    try {
+      previewCamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const camTrack = previewCamStream.getVideoTracks()[0];
+      $('preview-video').srcObject = previewCamStream;
+      $('preview-video').classList.add('on');
+      $('lobby-avatar').style.opacity = '0';
+    } catch (e) {
+      lobbyState.cam = false;
+      $('lobby-cam').classList.add('off');
+      $('lobby-cam').innerHTML = ICON.camOff;
+      showToast('Нет доступа к камере');
+    }
+  } else {
+    // ВЫКЛючаем — останавливаем трек, индикатор гаснет
+    if (previewCamStream) {
+      previewCamStream.getTracks().forEach(t => t.stop());
+      previewCamStream = null;
+    }
+    $('preview-video').srcObject = null;
+    $('preview-video').classList.remove('on');
+    $('lobby-avatar').style.opacity = '1';
   }
-  $('preview-video').classList.toggle('on', lobbyState.cam);
-  $('lobby-avatar').style.opacity = lobbyState.cam ? '0' : '1';
 });
 
 $('username').addEventListener('input', (e) => {
@@ -452,27 +471,44 @@ $('btn-start').addEventListener('click', async () => {
   app.self.cam = lobbyState.cam;
   app.self.color = randomColor(name);
 
+  // Останавливаем превью
   if (previewStream) {
     previewStream.getTracks().forEach(t => t.stop());
     previewStream = null;
+  }
+  if (previewCamStream) {
+    previewCamStream.getTracks().forEach(t => t.stop());
+    previewCamStream = null;
   }
 
   await joinCall();
 });
 
 async function joinCall() {
-  try {
-    app.localStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true },
-      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-    });
-  } catch (e) {
-    showToast('Не удалось получить доступ к устройствам');
-    return;
+  // Аудио — всегда. Видео — только если камера включена в лобби
+  const constraints = {
+    audio: { echoCancellation: true, noiseSuppression: true },
+  };
+  if (lobbyState.cam) {
+    constraints.video = { width: { ideal: 1280 }, height: { ideal: 720 } };
   }
 
-  app.audioTrack = app.localStream.getAudioTracks()[0];
-  app.camTrack = app.localStream.getVideoTracks()[0];
+  try {
+    app.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+  } catch (e) {
+    // Если с видео не получилось — только аудио
+    try {
+      app.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      lobbyState.cam = false;
+      app.self.cam = false;
+    } catch (e2) {
+      showToast('Не удалось получить доступ к микрофону');
+      return;
+    }
+  }
+
+  app.audioTrack = app.localStream.getAudioTracks()[0] || null;
+  app.camTrack = app.localStream.getVideoTracks()[0] || null;
   if (app.audioTrack) app.audioTrack.enabled = app.self.mic;
   if (app.camTrack) app.camTrack.enabled = app.self.cam;
 
@@ -780,8 +816,39 @@ $('btn-mic').addEventListener('click', () => {
   showToast(app.self.mic ? 'Микрофон включён' : 'Микрофон выключен');
 });
 
-$('btn-cam').addEventListener('click', () => {
-  app.self.cam = !app.self.cam;
+$('btn-cam').addEventListener('click', async () => {
+  const wantOn = !app.self.cam;
+
+  if (wantOn && !app.camTrack) {
+    // Камеры нет — запрашиваем сейчас
+    try {
+      const camStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      const newTrack = camStream.getVideoTracks()[0];
+      app.camTrack = newTrack;
+      app.localStream.addTrack(newTrack);
+
+      // Добавляем трек во все peer connections и делаем renegotiation
+      for (const [peerId, pc] of app.peers) {
+        pc.addTrack(newTrack, app.localStream);
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          sendWs({ type: 'signal', to: peerId, data: { sdp: pc.localDescription } });
+        } catch (e) { console.warn('renegotiate failed', e); }
+      }
+
+      // Обновляем своё локальное превью
+      const selfTile = stage.querySelector(`.tile[data-id="${app.self.id}"]`);
+      if (selfTile) selfTile.querySelector('video').srcObject = app.localStream;
+    } catch (e) {
+      showToast('Нет доступа к камере');
+      return;
+    }
+  }
+
+  app.self.cam = wantOn;
   if (app.camTrack) app.camTrack.enabled = app.self.cam;
   updateCamBtn();
   sendWs({ type: 'update', cam: app.self.cam });
