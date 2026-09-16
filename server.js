@@ -36,7 +36,8 @@ const server = http.createServer((req, res) => {
 
 /* ---------- WebSocket: сигналинг ---------- */
 const wss = new WebSocketServer({ server });
-const rooms = new Map(); // roomId -> Map<clientId, {ws, name, mic, cam, screen}>
+const rooms = new Map();
+const chatHistory = new Map(); // roomId -> []
 
 function getRoom(id) {
   if (!rooms.has(id)) rooms.set(id, new Map());
@@ -53,6 +54,13 @@ function broadcast(roomId, msg, exceptId = null) {
   }
 }
 
+function sendTo(roomId, clientId, msg) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  const c = room.get(clientId);
+  if (c && c.ws.readyState === 1) c.ws.send(JSON.stringify(msg));
+}
+
 wss.on('connection', (ws) => {
   let clientId = null;
   let roomId = null;
@@ -62,6 +70,8 @@ wss.on('connection', (ws) => {
     try { msg = JSON.parse(raw); } catch { return; }
 
     switch (msg.type) {
+
+      /* -------- Вход в комнату -------- */
       case 'join': {
         clientId = msg.id || ('u-' + Math.random().toString(36).slice(2, 8));
         roomId = msg.room || 'default';
@@ -70,17 +80,26 @@ wss.on('connection', (ws) => {
         const participants = [...room.entries()].map(([id, c]) => ({
           id, name: c.name, mic: c.mic, cam: c.cam, screen: c.screen || false,
           isAdmin: c.isAdmin || false,
+          micLocked: c.micLocked || false,
+          camLocked: c.camLocked || false,
         }));
 
-        ws.send(JSON.stringify({ type: 'joined', id: clientId, participants }));
+        ws.send(JSON.stringify({
+          type: 'joined',
+          id: clientId,
+          participants,
+          history: chatHistory.get(roomId) || [],
+        }));
 
-               room.set(clientId, {
+        room.set(clientId, {
           ws,
           name: msg.name || 'Гость',
           mic: msg.mic ?? true,
           cam: msg.cam ?? false,
           screen: false,
           isAdmin: false,
+          micLocked: false,
+          camLocked: false,
         });
 
         broadcast(roomId, {
@@ -89,12 +108,16 @@ wss.on('connection', (ws) => {
           name: msg.name || 'Гость',
           mic: msg.mic ?? true,
           cam: msg.cam ?? false,
+          isAdmin: false,
+          micLocked: false,
+          camLocked: false,
         }, clientId);
 
         console.log(`[${roomId}] + ${clientId} (${msg.name}) — всего: ${room.size}`);
         break;
       }
 
+      /* -------- WebRTC сигналинг -------- */
       case 'signal': {
         const room = rooms.get(roomId);
         if (!room) return;
@@ -107,11 +130,23 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      /* -------- Обновление статуса -------- */
       case 'update': {
         const room = rooms.get(roomId);
         if (!room) return;
         const c = room.get(clientId);
         if (!c) return;
+
+        // Проверка локов — если включение заблокировано, не разрешаем
+        if (msg.mic !== undefined && c.micLocked && msg.mic === true) {
+          sendTo(roomId, clientId, { type: 'mic-locked-notice' });
+          return;
+        }
+        if (msg.cam !== undefined && c.camLocked && msg.cam === true) {
+          sendTo(roomId, clientId, { type: 'cam-locked-notice' });
+          return;
+        }
+
         if (msg.mic !== undefined) c.mic = msg.mic;
         if (msg.cam !== undefined) c.cam = msg.cam;
         if (msg.screen !== undefined) c.screen = msg.screen;
@@ -124,8 +159,56 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      /* -------- Чат -------- */
+      case 'chat': {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const c = room.get(clientId);
+        if (!c) return;
+
+        const text = String(msg.text || '').slice(0, 500).trim();
+        if (!text) return;
+
+        const chatMsg = {
+          id: 'm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+          from: clientId,
+          name: c.name,
+          text,
+          time: Date.now(),
+        };
+
+        if (!chatHistory.has(roomId)) chatHistory.set(roomId, []);
+        const hist = chatHistory.get(roomId);
+        hist.push(chatMsg);
+        if (hist.length > 200) hist.shift();
+
+        broadcast(roomId, { type: 'chat', msg: chatMsg });
+        break;
+      }
+
+      /* -------- Выход -------- */
       case 'leave': handleLeave(); break;
-            /* -------- Админ: кик участника -------- */
+
+      /* ==================== АДМИН ==================== */
+      case 'admin-login': {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const c = room.get(clientId);
+        if (!c) return;
+        if (msg.password === 'admadm') {
+          c.isAdmin = true;
+          ws.send(JSON.stringify({ type: 'admin-granted' }));
+          broadcast(roomId, {
+            type: 'participant-updated',
+            id: clientId, isAdmin: true,
+          }, clientId);
+          console.log(`[${roomId}] 🔑 ${clientId} became ADMIN`);
+        } else {
+          ws.send(JSON.stringify({ type: 'admin-denied' }));
+        }
+        break;
+      }
+
       case 'admin-kick': {
         const room = rooms.get(roomId);
         if (!room) return;
@@ -142,7 +225,6 @@ wss.on('connection', (ws) => {
         break;
       }
 
-      /* -------- Админ: замьютить участника -------- */
       case 'admin-mute': {
         const room = rooms.get(roomId);
         if (!room) return;
@@ -150,15 +232,114 @@ wss.on('connection', (ws) => {
         if (!admin || !admin.isAdmin) return;
         const target = room.get(msg.targetId);
         if (target && target.ws.readyState === 1) {
-          target.ws.send(JSON.stringify({
-            type: 'force-mute',
-            value: msg.value,
-          }));
+          target.ws.send(JSON.stringify({ type: 'force-mute', value: msg.value }));
         }
         break;
       }
 
-      /* -------- Админ: завершить звонок для всех -------- */
+      case 'admin-cam': {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const admin = room.get(clientId);
+        if (!admin || !admin.isAdmin) return;
+        const target = room.get(msg.targetId);
+        if (target && target.ws.readyState === 1) {
+          target.ws.send(JSON.stringify({ type: 'force-cam', value: msg.value }));
+        }
+        break;
+      }
+
+      case 'admin-lock-mic': {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const admin = room.get(clientId);
+        if (!admin || !admin.isAdmin) return;
+        const target = room.get(msg.targetId);
+        if (!target) return;
+        target.micLocked = !!msg.locked;
+        if (target.micLocked) target.mic = false;
+        // Уведомить цель
+        if (target.ws.readyState === 1) {
+          target.ws.send(JSON.stringify({
+            type: 'force-mute', value: true,
+          }));
+          target.ws.send(JSON.stringify({
+            type: 'lock-update', micLocked: target.micLocked, camLocked: target.camLocked,
+          }));
+        }
+        // Уведомить всех об обновлении статуса
+        broadcast(roomId, {
+          type: 'participant-updated',
+          id: msg.targetId,
+          mic: target.mic, micLocked: target.micLocked,
+        }, msg.targetId);
+        break;
+      }
+
+      case 'admin-lock-cam': {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const admin = room.get(clientId);
+        if (!admin || !admin.isAdmin) return;
+        const target = room.get(msg.targetId);
+        if (!target) return;
+        target.camLocked = !!msg.locked;
+        if (target.camLocked) target.cam = false;
+        if (target.ws.readyState === 1) {
+          target.ws.send(JSON.stringify({
+            type: 'force-cam', value: false,
+          }));
+          target.ws.send(JSON.stringify({
+            type: 'lock-update', micLocked: target.micLocked, camLocked: target.camLocked,
+          }));
+        }
+        broadcast(roomId, {
+          type: 'participant-updated',
+          id: msg.targetId,
+          cam: target.cam, camLocked: target.camLocked,
+        }, msg.targetId);
+        break;
+      }
+
+      case 'admin-unlock-all': {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const admin = room.get(clientId);
+        if (!admin || !admin.isAdmin) return;
+        room.forEach((c, id) => {
+          c.micLocked = false;
+          c.camLocked = false;
+          if (c.ws.readyState === 1) {
+            c.ws.send(JSON.stringify({
+              type: 'lock-update', micLocked: false, camLocked: false,
+            }));
+          }
+          broadcast(roomId, {
+            type: 'participant-updated',
+            id, micLocked: false, camLocked: false,
+          }, id);
+        });
+        break;
+      }
+
+      case 'admin-mute-all': {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const admin = room.get(clientId);
+        if (!admin || !admin.isAdmin) return;
+        room.forEach((c, id) => {
+          if (id === clientId) return;
+          c.mic = false;
+          if (c.ws.readyState === 1) {
+            c.ws.send(JSON.stringify({ type: 'force-mute', value: true }));
+          }
+          broadcast(roomId, {
+            type: 'participant-updated', id, mic: false,
+          }, id);
+        });
+        break;
+      }
+
       case 'admin-end-all': {
         const room = rooms.get(roomId);
         if (!room) return;
@@ -168,22 +349,6 @@ wss.on('connection', (ws) => {
           type: 'call-ended',
           reason: msg.reason || 'Звонок завершён администратором',
         }, clientId);
-        break;
-      }
-
-      /* -------- Проверка админ-пароля -------- */
-      case 'admin-login': {
-        const room = rooms.get(roomId);
-        if (!room) return;
-        const c = room.get(clientId);
-        if (!c) return;
-        if (msg.password === 'admadm') {
-          c.isAdmin = true;
-          ws.send(JSON.stringify({ type: 'admin-granted' }));
-          console.log(`[${roomId}] 🔑 ${clientId} became ADMIN`);
-        } else {
-          ws.send(JSON.stringify({ type: 'admin-denied' }));
-        }
         break;
       }
     }
@@ -198,7 +363,10 @@ wss.on('connection', (ws) => {
       room.delete(clientId);
       broadcast(roomId, { type: 'participant-left', id: clientId });
       console.log(`[${roomId}] − ${clientId} — осталось: ${room.size}`);
-      if (room.size === 0) rooms.delete(roomId);
+      if (room.size === 0) {
+        rooms.delete(roomId);
+        chatHistory.delete(roomId);
+      }
     }
     clientId = null;
     roomId = null;
