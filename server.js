@@ -69,16 +69,18 @@ wss.on('connection', (ws) => {
 
         const participants = [...room.entries()].map(([id, c]) => ({
           id, name: c.name, mic: c.mic, cam: c.cam, screen: c.screen || false,
+          isAdmin: c.isAdmin || false,
         }));
 
         ws.send(JSON.stringify({ type: 'joined', id: clientId, participants }));
 
-        room.set(clientId, {
+               room.set(clientId, {
           ws,
           name: msg.name || 'Гость',
           mic: msg.mic ?? true,
           cam: msg.cam ?? false,
           screen: false,
+          isAdmin: false,
         });
 
         broadcast(roomId, {
@@ -123,6 +125,67 @@ wss.on('connection', (ws) => {
       }
 
       case 'leave': handleLeave(); break;
+            /* -------- Админ: кик участника -------- */
+      case 'admin-kick': {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const admin = room.get(clientId);
+        if (!admin || !admin.isAdmin) return;
+        const target = room.get(msg.targetId);
+        if (target && target.ws.readyState === 1) {
+          target.ws.send(JSON.stringify({
+            type: 'kicked',
+            reason: msg.reason || 'Вас исключили из звонка',
+          }));
+          setTimeout(() => { try { target.ws.close(); } catch {} }, 200);
+        }
+        break;
+      }
+
+      /* -------- Админ: замьютить участника -------- */
+      case 'admin-mute': {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const admin = room.get(clientId);
+        if (!admin || !admin.isAdmin) return;
+        const target = room.get(msg.targetId);
+        if (target && target.ws.readyState === 1) {
+          target.ws.send(JSON.stringify({
+            type: 'force-mute',
+            value: msg.value,
+          }));
+        }
+        break;
+      }
+
+      /* -------- Админ: завершить звонок для всех -------- */
+      case 'admin-end-all': {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const admin = room.get(clientId);
+        if (!admin || !admin.isAdmin) return;
+        broadcast(roomId, {
+          type: 'call-ended',
+          reason: msg.reason || 'Звонок завершён администратором',
+        }, clientId);
+        break;
+      }
+
+      /* -------- Проверка админ-пароля -------- */
+      case 'admin-login': {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const c = room.get(clientId);
+        if (!c) return;
+        if (msg.password === 'admadm') {
+          c.isAdmin = true;
+          ws.send(JSON.stringify({ type: 'admin-granted' }));
+          console.log(`[${roomId}] 🔑 ${clientId} became ADMIN`);
+        } else {
+          ws.send(JSON.stringify({ type: 'admin-denied' }));
+        }
+        break;
+      }
     }
   });
 
