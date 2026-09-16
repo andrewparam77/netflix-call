@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Netflix Call</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+  body { background: #0b0b0f; color: #fff; height: 100vh; overflow: hidden; }
+
+  /* ---- LOBBY ---- */
+  .lobby {
+    position: fixed; inset: 0; display: flex;
+    align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 30%, #1a0a0e 0%, #0b0b0f 70%);
+    z-index: 500; transition: opacity .35s, visibility .35s;
+  }
+  .lobby.hidden { opacity: 0; visibility: hidden; }
+  .lobby-card {
+    width: 420px; background: #15151a; border: 1px solid #262630;
+    border-radius: 16px; padding: 32px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.6);
+  }
+  .lobby-card h1 { font-size: 26px; color: #e50914; font-weight: 700; margin-bottom: 4px; }
+  .lobby-card p.sub { font-size: 13px; color: #888; margin-bottom: 24px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #777; margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; background: #0b0b0f; border: 1px solid #262630;
+    border-radius: 8px; padding: 12px 14px; color: #fff; font-size: 14px; outline: none;
+  }
+  .field input:focus, .field select:focus { border-color: #e50914; }
+
+  .preview-box {
+    width: 100%; height: 160px; border-radius: 10px;
+    background: radial-gradient(circle at 50% 40%, #1a1a22, #0b0b0f);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px; border: 1px solid #262630;
+    position: relative; overflow: hidden;
+  }
+  .preview-box video { width: 100%; height: 100%; object-fit: cover; display: none; }
+  .preview-box video.on { display: block; }
+  .preview-box .avatar {
+    width: 70px; height: 70px; border-radius: 50%;
+    background: linear-gradient(135deg,#e50914,#7a0408);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 700;
+    position: absolute; transition: opacity .2s;
+  }
+  .preview-box .mini-controls {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; z-index: 2;
+  }
+  .mini-btn {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: rgba(0,0,0,.7); border: 1px solid #262630;
+    color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(6px); transition: all .15s;
+  }
+  .mini-btn:hover { background: #2a2a32; }
+  .mini-btn.off { background: #e50914; border-color: #e50914; }
+  .mini-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+  .btn-primary {
+    width: 100%; background: #e50914; color: #fff; border: none;
+    padding: 14px; border-radius: 8px; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: all .15s; margin-top: 8px;
+  }
+  .btn-primary:hover { background: #f6121d; }
+  .hint { font-size: 12px; color: #666; text-align: center; margin-top: 14px; line-height: 1.5; }
+
+  /* ---- CALL ---- */
+  .call { height: 100vh; display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity .35s; }
+  .call.active { opacity: 1; pointer-events: auto; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; background: rgba(0,0,0,.5);
+    backdrop-filter: blur(10px); border-bottom: 1px solid #1c1c22;
+  }
+  .topbar h1 { font-size: 15px; color: #e50914; font-weight: 500; }
+  .topbar h1 span { color: #fff; font-weight: 300; margin-left: 8px; font-size: 13px; }
+  .topbar .right { display: flex; align-items: center; gap: 16px; }
+  .topbar .count { font-size: 12px; color: #aaa; display: flex; align-items: center; gap: 6px; }
+  .topbar .count .live { width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+  .topbar .conn { font-size: 11px; color: #666; }
+  .topbar .conn.online { color: #2ecc71; }
+  .topbar .time { font-size: 13px; color: #aaa; font-variant-numeric: tabular-nums; }
+
+  .stage {
+    flex: 1; display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px; padding: 16px; min-height: 0;
+    overflow-y: auto; align-content: center;
+  }
+
+  .tile {
+    background: #15151a; border-radius: 12px; overflow: hidden;
+    position: relative; display: flex; align-items: center; justify-content: center;
+    border: 1px solid #1c1c22; aspect-ratio: 16/10;
+    transition: border-color .2s;
+    animation: tileIn .3s ease;
+  }
+  @keyframes tileIn { from{opacity:0;transform:scale(.94)} to{opacity:1;transform:scale(1)} }
+  .tile.leaving { animation: tileOut .3s forwards; }
+  @keyframes tileOut { to { opacity: 0; transform: scale(.9); } }
+  .tile.speaking { border-color: #2ecc71; box-shadow: 0 0 0 2px rgba(46,204,113,.25); }
+
+  .tile video {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; background: #000;
+    display: none;
+  }
+  .tile video.on { display: block; }
+  .tile video.contain { object-fit: contain; }
+  .tile video.mirror { transform: scaleX(-1); }
+
+  .tile .avatar-fallback {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tile .avatar-fallback.hidden { display: none; }
+  .tile .avatar {
+    width: 76px; height: 76px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: 700;
+  }
+  .tile .name {
+    position: absolute; left: 10px; bottom: 10px;
+    font-size: 12px; background: rgba(0,0,0,.65);
+    padding: 4px 10px; border-radius: 6px;
+    display: flex; align-items: center; gap: 6px;
+    backdrop-filter: blur(6px); z-index: 3;
+  }
+  .tile .name .dot { width: 6px; height: 6px; border-radius: 50%; background: #2ecc71; }
+  .tile .name.muted .dot { background: #e50914; }
+  .tile .mic-off {
+    position: absolute; top: 10px; right: 10px;
+    background: rgba(229,9,20,.9); width: 26px; height: 26px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; z-index: 3;
+  }
+  .tile .you-tag {
+    position: absolute; top: 10px; left: 10px;
+    background: rgba(229,9,20,.9); font-size: 10px; font-weight: 600;
+    padding: 3px 8px; border-radius: 4px; z-index: 3;
+  }
+  .tile .screen-tag {
+    position: absolute; top: 10px; left: 10px;
+    background: rgba(52,152,219,.9); font-size: 10px; font-weight: 600;
+    padding: 3px 8px; border-radius: 4px; z-index: 3; display: none;
+  }
+  .tile.sharing .screen-tag { display: block; }
+
+  /* ---- CONTROLS ---- */
+  .controls {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; padding: 14px 20px 18px;
+    background: rgba(0,0,0,.7); backdrop-filter: blur(12px);
+    border-top: 1px solid #1c1c22; position: relative; flex-wrap: wrap;
+  }
+  .btn {
+    width: 52px; height: 52px; border-radius: 50%; border: none;
+    background: #1c1c22; color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .btn:hover { background: #2a2a32; transform: translateY(-2px); }
+  .btn.off { background: #e50914; }
+  .btn.off:hover { background: #f6121d; }
+  .btn.leave {
+    background: #e50914; width: auto; padding: 0 22px;
+    border-radius: 26px; gap: 8px; font-weight: 500; font-size: 14px;
+  }
+  .btn.leave:hover { background: #f6121d; }
+  .btn svg { width: 22px; height: 22px; fill: currentColor; }
+  .btn.leave svg { width: 18px; height: 18px; }
+
+  .panel {
+    position: absolute; bottom: 90px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #15151a; border: 1px solid #262630;
+    border-radius: 12px; padding: 16px; min-width: 320px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    opacity: 0; pointer-events: none;
+    transition: all .2s; z-index: 100;
+  }
+  .panel.open { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+  .panel h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #777; margin-bottom: 8px; }
+  .panel h3:not(:first-child) { margin-top: 16px; }
+  .panel select {
+    width: 100%; background: #0b0b0f; color: #fff;
+    border: 1px solid #262630; border-radius: 8px;
+    padding: 10px 12px; font-size: 13px; outline: none; cursor: pointer;
+  }
+  .panel select:focus { border-color: #e50914; }
+
+  .toast {
+    position: fixed; top: 70px; left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: rgba(0,0,0,.9); border: 1px solid #262630;
+    color: #fff; padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; opacity: 0; transition: all .25s;
+    pointer-events: none; z-index: 900;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .join-notice {
+    position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+    background: rgba(46,204,113,.15); border: 1px solid rgba(46,204,113,.4);
+    color: #2ecc71; padding: 8px 16px; border-radius: 8px;
+    font-size: 13px; z-index: 950;
+    animation: noticeIn .3s;
+  }
+  @keyframes noticeIn { from{opacity:0;transform:translateX(-50%) translateY(-10px)} }
+</style>
+</head>
+<body>
+
+  <!-- LOBBY -->
+  <div class="lobby" id="lobby">
+    <div class="lobby-card">
+      <h1>Присоединиться к созвону</h1>
+      <p class="sub">Комната <b>#netflix-watch</b></p>
+
+      <div class="preview-box">
+        <video id="preview-video" autoplay playsinline muted></video>
+        <div class="avatar" id="lobby-avatar">?</div>
+        <div class="mini-controls">
+          <button class="mini-btn" id="lobby-mic"></button>
+          <button class="mini-btn off" id="lobby-cam"></button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Ваше имя</label>
+        <input type="text" id="username" maxlength="20" placeholder="Введите имя">
+      </div>
+
+      <div class="field">
+        <label>Микрофон</label>
+        <select id="lobby-select-mic"><option>Микрофон по умолчанию</option></select>
+      </div>
+
+      <div class="field">
+        <label>Камера</label>
+        <select id="lobby-select-cam"><option>Камера по умолчанию</option></select>
+      </div>
+
+      <button class="btn-primary" id="btn-start">Начать звонок</button>
+      <p class="hint">Микрофон включён, камера выключена по умолчанию.<br>Разрешите доступ к устройствам.</p>
+    </div>
+  </div>
+
+  <!-- CALL -->
+  <div class="call" id="call">
+    <div class="topbar">
+      <h1>СОЗВОН<span>комната #netflix-watch</span></h1>
+      <div class="right">
+        <div class="count"><span class="live"></span><span id="participant-count">1 участник</span></div>
+        <div class="conn" id="conn-status">● offline</div>
+        <div class="time" id="timer">00:00</div>
+      </div>
+    </div>
+
+    <div class="stage" id="stage"></div>
+
+    <div class="controls">
+      <button class="btn" id="btn-mic" title="Микрофон"></button>
+      <button class="btn off" id="btn-cam" title="Камера"></button>
+      <button class="btn" id="btn-screen" title="Демонстрация экрана">
+        <svg viewBox="0 0 24 24"><path d="M21 3H3a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h7v2H8v2h8v-2h-2v-2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 13H3V5h18v11z"/></svg>
+      </button>
+      <button class="btn" id="btn-devices" title="Устройства">
+        <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 12h-2z"/></svg>
+      </button>
+      <button class="btn leave" id="btn-leave">
+        <svg viewBox="0 0 24 24"><path d="M16 8l-1.41 1.41L17.17 12H8v2h9.17l-2.58 2.59L16 18l5-5-5-5zM4 4h8V2H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8v-2H4V4z"/></svg>
+        Завершить
+      </button>
+
+      <div class="panel" id="panel">
+        <h3>Микрофон</h3>
+        <select id="select-mic"></select>
+        <h3>Динамики / наушники</h3>
+        <select id="select-output"></select>
+        <h3>Камера</h3>
+        <select id="select-cam"></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+/* ---------- ИКОНКИ ---------- */
+const ICON = {
+  micOn:  '<svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>',
+  micOff: '<svg viewBox="0 0 24 24"><path d="M19 11h-1.7A5.5 5.5 0 0 1 12 16.5c-.3 0-.5 0-.8-.05L9.5 18.2A7 7 0 0 0 11 18.9V21h2v-2.1c2.9-.5 5-3 5-5.9h-2zM4.27 3L3 4.27l6.13 6.13V11a2.9 2.9 0 0 0 2.9 2.9c.32 0 .63-.05.92-.15L15.7 16.5A7 7 0 0 1 12 17.5a5 5 0 0 1-5-5H5a7 7 0 0 0 6 6.92V21h2v-2.1c.78-.14 1.5-.42 2.15-.8L19.73 22 21 20.73 4.27 3z"/></svg>',
+  camOn:  '<svg viewBox="0 0 24 24"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>',
+  camOff: '<svg viewBox="0 0 24 24"><path d="M21 6.5l-4 4V7a1 1 0 0 0-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/></svg>',
+};
+
+/* ---------- СОСТОЯНИЕ ---------- */
+const app = {
+  inCall: false,
+  ws: null,
+  room: 'netflix-watch',
+  self: {
+    id: 'u-' + Math.random().toString(36).slice(2, 8),
+    name: '',
+    mic: true,
+    cam: false,
+    screen: false,
+    color: '#e50914',
+  },
+  localStream: null,
+  audioTrack: null,
+  camTrack: null,
+  screenStream: null,
+  peers: new Map(),
+  pendingCandidates: new Map(),
+  participants: new Map(),
+  timerInterval: null,
+  startedAt: 0,
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ],
+};
+
+/* ---------- DOM ---------- */
+const $ = (id) => document.getElementById(id);
+const lobby = $('lobby');
+const call = $('call');
+const stage = $('stage');
+const toast = $('toast');
+
+/* ---------- УТИЛИТЫ ---------- */
+function showToast(text) {
+  toast.textContent = text;
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 1800);
+}
+function initials(name) {
+  const n = (name || '').trim();
+  if (!n) return '?';
+  return n.split(/\s+/).map(w => w[0].toUpperCase()).slice(0, 2).join('');
+}
+function randomColor(seed) {
+  const p = ['#e50914','#f5a623','#2ecc71','#3498db','#9b59b6','#e91e63','#1abc9c','#e67e22'];
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) & 0xffff;
+  return p[h % p.length];
+}
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return `${n} ${one}`;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return `${n} ${few}`;
+  return `${n} ${many}`;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------- ЛОББИ ---------- */
+const lobbyState = { mic: true, cam: false };
+let previewStream = null;
+
+async function initPreview() {
+  try {
+    previewStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+  } catch (e) {
+    try { previewStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e2) { showToast('Нет доступа к камере/микрофону'); return; }
+  }
+
+  const v = previewStream.getVideoTracks()[0];
+  if (v) { v.enabled = false; $('preview-video').srcObject = previewStream; }
+  const a = previewStream.getAudioTracks()[0];
+  if (a) a.enabled = true;
+
+  await populateDevices();
+}
+
+async function populateDevices() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const mics = devices.filter(d => d.kind === 'audioinput');
+    const spks = devices.filter(d => d.kind === 'audiooutput');
+    const cams = devices.filter(d => d.kind === 'videoinput');
+    fillSelect($('lobby-select-mic'), mics, 'Микрофон');
+    fillSelect($('lobby-select-cam'), cams, 'Камера');
+    fillSelect($('select-mic'), mics, 'Микрофон');
+    fillSelect($('select-output'), spks, 'Устройство вывода');
+    fillSelect($('select-cam'), cams, 'Камера');
+  } catch (e) { console.warn(e); }
+}
+
+function fillSelect(sel, devices, label) {
+  if (!sel) return;
+  sel.innerHTML = '';
+  if (!devices.length) {
+    const o = document.createElement('option');
+    o.textContent = `${label} по умолчанию`;
+    sel.appendChild(o); return;
+  }
+  devices.forEach((d, i) => {
+    const o = document.createElement('option');
+    o.value = d.deviceId;
+    o.textContent = d.label || `${label} ${i + 1}`;
+    sel.appendChild(o);
+  });
+}
+
+$('lobby-mic').innerHTML = ICON.micOn;
+$('lobby-cam').innerHTML = ICON.camOff;
+
+$('lobby-mic').addEventListener('click', () => {
+  lobbyState.mic = !lobbyState.mic;
+  $('lobby-mic').classList.toggle('off', !lobbyState.mic);
+  $('lobby-mic').innerHTML = lobbyState.mic ? ICON.micOn : ICON.micOff;
+  if (previewStream) {
+    const t = previewStream.getAudioTracks()[0];
+    if (t) t.enabled = lobbyState.mic;
+  }
+});
+
+$('lobby-cam').addEventListener('click', () => {
+  lobbyState.cam = !lobbyState.cam;
+  $('lobby-cam').classList.toggle('off', !lobbyState.cam);
+  $('lobby-cam').innerHTML = lobbyState.cam ? ICON.camOn : ICON.camOff;
+  if (previewStream) {
+    const t = previewStream.getVideoTracks()[0];
+    if (t) t.enabled = lobbyState.cam;
+  }
+  $('preview-video').classList.toggle('on', lobbyState.cam);
+  $('lobby-avatar').style.opacity = lobbyState.cam ? '0' : '1';
+});
+
+$('username').addEventListener('input', (e) => {
+  $('lobby-avatar').textContent = initials(e.target.value) || '?';
+});
+
+/* ---------- СТАРТ ЗВОНКА ---------- */
+$('btn-start').addEventListener('click', async () => {
+  const name = $('username').value.trim() || 'Гость';
+  app.self.name = name;
+  app.self.mic = lobbyState.mic;
+  app.self.cam = lobbyState.cam;
+  app.self.color = randomColor(name);
+
+  if (previewStream) {
+    previewStream.getTracks().forEach(t => t.stop());
+    previewStream = null;
+  }
+
+  await joinCall();
+});
+
+async function joinCall() {
+  try {
+    app.localStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true },
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+    });
+  } catch (e) {
+    showToast('Не удалось получить доступ к устройствам');
+    return;
+  }
+
+  app.audioTrack = app.localStream.getAudioTracks()[0];
+  app.camTrack = app.localStream.getVideoTracks()[0];
+  if (app.audioTrack) app.audioTrack.enabled = app.self.mic;
+  if (app.camTrack) app.camTrack.enabled = app.self.cam;
+
+  app.inCall = true;
+  lobby.classList.add('hidden');
+  call.classList.add('active');
+  updateMicBtn();
+  updateCamBtn();
+  renderParticipants();
+  startTimer();
+
+  connectWebSocket();
+}
+
+/* ---------- WEBSOCKET ---------- */
+function connectWebSocket() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  app.ws = new WebSocket(`${proto}://${location.host}`);
+
+  app.ws.onopen = () => {
+    $('conn-status').textContent = '● online';
+    $('conn-status').classList.add('online');
+    app.ws.send(JSON.stringify({
+      type: 'join',
+      id: app.self.id,
+      room: app.room,
+      name: app.self.name,
+      mic: app.self.mic,
+      cam: app.self.cam,
+    }));
+  };
+
+  app.ws.onmessage = (e) => {
+    let msg; try { msg = JSON.parse(e.data); } catch { return; }
+    handleWsMessage(msg);
+  };
+
+  app.ws.onclose = () => {
+    $('conn-status').textContent = '● offline';
+    $('conn-status').classList.remove('online');
+    if (app.inCall) showToast('Соединение потеряно');
+  };
+}
+
+function sendWs(obj) {
+  if (app.ws && app.ws.readyState === 1) app.ws.send(JSON.stringify(obj));
+}
+
+async function handleWsMessage(msg) {
+  switch (msg.type) {
+    case 'joined': {
+      for (const p of msg.participants) {
+        addParticipantMeta(p);
+        await createOffer(p.id);
+      }
+      renderParticipants();
+      break;
+    }
+    case 'participant-joined': {
+      addParticipantMeta(msg);
+      renderParticipants();
+      showJoinNotice(`${msg.name} присоединился(ась)`);
+      break;
+    }
+    case 'participant-updated': {
+      const p = app.participants.get(msg.id);
+      if (!p) return;
+      if (msg.mic !== undefined) p.mic = msg.mic;
+      if (msg.cam !== undefined) p.cam = msg.cam;
+      if (msg.screen !== undefined) p.screen = msg.screen;
+      renderParticipants();
+      break;
+    }
+    case 'participant-left':
+      removeParticipant(msg.id);
+      break;
+    case 'signal':
+      await handleSignal(msg.from, msg.data);
+      break;
+  }
+}
+
+function addParticipantMeta(p) {
+  if (app.participants.has(p.id)) return;
+  app.participants.set(p.id, {
+    id: p.id,
+    name: p.name || 'Гость',
+    mic: p.mic ?? true,
+    cam: p.cam ?? false,
+    screen: p.screen ?? false,
+    color: randomColor(p.name || p.id),
+    stream: null,
+  });
+}
+
+/* ---------- WEBRTC ---------- */
+function createPeerConnection(peerId) {
+  if (app.peers.has(peerId)) return app.peers.get(peerId);
+
+  const pc = new RTCPeerConnection({ iceServers: app.iceServers });
+
+  app.localStream.getTracks().forEach(track => {
+    pc.addTrack(track, app.localStream);
+  });
+
+  pc.onicecandidate = (e) => {
+    if (e.candidate) sendWs({ type: 'signal', to: peerId, data: { candidate: e.candidate } });
+  };
+
+  pc.ontrack = (e) => {
+    const p = app.participants.get(peerId);
+    if (!p) return;
+    const [stream] = e.streams;
+    p.stream = stream;
+    const tile = stage.querySelector(`.tile[data-id="${peerId}"]`);
+    if (tile) {
+      const v = tile.querySelector('video');
+      if (v.srcObject !== stream) v.srcObject = stream;
+    }
+  };
+
+  app.peers.set(peerId, pc);
+  app.pendingCandidates.set(peerId, []);
+  return pc;
+}
+
+async function createOffer(peerId) {
+  const pc = createPeerConnection(peerId);
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  sendWs({ type: 'signal', to: peerId, data: { sdp: pc.localDescription } });
+}
+
+async function handleSignal(from, data) {
+  let pc = app.peers.get(from);
+
+  if (data.sdp) {
+    if (data.sdp.type === 'offer') {
+      if (!pc) pc = createPeerConnection(from);
+      await pc.setRemoteDescription(data.sdp);
+      const q = app.pendingCandidates.get(from) || [];
+      for (const c of q) { try { await pc.addIceCandidate(c); } catch {} }
+      app.pendingCandidates.set(from, []);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      sendWs({ type: 'signal', to: from, data: { sdp: pc.localDescription } });
+    } else if (data.sdp.type === 'answer') {
+      if (pc) {
+        await pc.setRemoteDescription(data.sdp);
+        const q = app.pendingCandidates.get(from) || [];
+        for (const c of q) { try { await pc.addIceCandidate(c); } catch {} }
+        app.pendingCandidates.set(from, []);
+      }
+    }
+    return;
+  }
+
+  if (data.candidate) {
+    if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+      try { await pc.addIceCandidate(data.candidate); } catch {}
+    } else {
+      const q = app.pendingCandidates.get(from) || [];
+      q.push(data.candidate);
+      app.pendingCandidates.set(from, q);
+    }
+  }
+}
+
+/* ---------- ОТРИСОВКА ---------- */
+function renderParticipants() {
+  upsertSelfTile();
+  app.participants.forEach(p => upsertPeerTile(p));
+
+  const total = 1 + app.participants.size;
+  $('participant-count').textContent = plural(total, 'участник', 'участника', 'участников');
+}
+
+function upsertSelfTile() {
+  let tile = stage.querySelector(`.tile[data-id="${app.self.id}"]`);
+  if (!tile) {
+    tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.dataset.id = app.self.id;
+    tile.innerHTML = `
+      <video autoplay playsinline muted></video>
+      <div class="avatar-fallback hidden"><div class="avatar"></div></div>
+      <div class="you-tag">ВЫ</div>
+      <div class="mic-off" style="display:none;">🔇</div>
+      <div class="name"><span class="dot"></span><span class="name-text"></span></div>
+    `;
+    const v = tile.querySelector('video');
+    v.srcObject = app.localStream;
+    v.classList.add('mirror');
+    stage.prepend(tile);
+  }
+  updateTile(tile, {
+    name: app.self.name,
+    mic: app.self.mic,
+    cam: app.self.cam,
+    screen: app.self.screen,
+    color: app.self.color,
+    isSelf: true,
+  });
+}
+
+function upsertPeerTile(p) {
+  let tile = stage.querySelector(`.tile[data-id="${p.id}"]`);
+  if (!tile) {
+    tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.dataset.id = p.id;
+    tile.innerHTML = `
+      <video autoplay playsinline></video>
+      <div class="avatar-fallback hidden"><div class="avatar"></div></div>
+      <div class="screen-tag">ЭКРАН</div>
+      <div class="mic-off" style="display:none;">🔇</div>
+      <div class="name"><span class="dot"></span><span class="name-text"></span></div>
+    `;
+    stage.appendChild(tile);
+  }
+  if (p.stream) {
+    const v = tile.querySelector('video');
+    if (v.srcObject !== p.stream) v.srcObject = p.stream;
+  }
+  updateTile(tile, {
+    name: p.name,
+    mic: p.mic,
+    cam: p.cam,
+    screen: p.screen,
+    color: p.color,
+  });
+}
+
+function updateTile(tile, { name, mic, cam, screen, color, isSelf = false }) {
+  const video = tile.querySelector('video');
+  const fallback = tile.querySelector('.avatar-fallback');
+  const avatar = tile.querySelector('.avatar');
+  const nameEl = tile.querySelector('.name');
+  const nameText = tile.querySelector('.name-text');
+  const micOff = tile.querySelector('.mic-off');
+
+  if (avatar) {
+    avatar.textContent = initials(name);
+    avatar.style.background = `linear-gradient(135deg, ${color}, #000)`;
+  }
+
+  const showVideo = cam || screen;
+  video.classList.toggle('on', showVideo);
+  fallback.classList.toggle('hidden', showVideo);
+  video.classList.toggle('contain', screen);
+  video.classList.toggle('mirror', isSelf && !screen);
+
+  nameText.textContent = escapeHtml(name) + (isSelf ? ' (вы)' : '');
+  nameEl.classList.toggle('muted', !mic);
+  micOff.style.display = mic ? 'none' : 'flex';
+  tile.classList.toggle('sharing', !!screen);
+}
+
+function showJoinNotice(text) {
+  const n = document.createElement('div');
+  n.className = 'join-notice';
+  n.textContent = text;
+  document.body.appendChild(n);
+  setTimeout(() => n.remove(), 2200);
+}
+
+function removeParticipant(id) {
+  const p = app.participants.get(id);
+  const name = p ? p.name : 'Участник';
+  const pc = app.peers.get(id);
+  if (pc) { try { pc.close(); } catch {} }
+  app.peers.delete(id);
+  app.pendingCandidates.delete(id);
+  app.participants.delete(id);
+
+  const tile = stage.querySelector(`.tile[data-id="${id}"]`);
+  if (tile) {
+    tile.classList.add('leaving');
+    setTimeout(() => tile.remove(), 300);
+  }
+  showToast(`${name} покинул(а) звонок`);
+  renderParticipants();
+}
+
+/* ---------- КНОПКИ ---------- */
+function updateMicBtn() {
+  const b = $('btn-mic');
+  b.classList.toggle('off', !app.self.mic);
+  b.innerHTML = app.self.mic ? ICON.micOn : ICON.micOff;
+}
+function updateCamBtn() {
+  const b = $('btn-cam');
+  b.classList.toggle('off', !app.self.cam);
+  b.innerHTML = app.self.cam ? ICON.camOn : ICON.camOff;
+}
+updateMicBtn();
+updateCamBtn();
+
+$('btn-mic').addEventListener('click', () => {
+  app.self.mic = !app.self.mic;
+  if (app.audioTrack) app.audioTrack.enabled = app.self.mic;
+  updateMicBtn();
+  sendWs({ type: 'update', mic: app.self.mic });
+  renderParticipants();
+  showToast(app.self.mic ? 'Микрофон включён' : 'Микрофон выключен');
+});
+
+$('btn-cam').addEventListener('click', () => {
+  app.self.cam = !app.self.cam;
+  if (app.camTrack) app.camTrack.enabled = app.self.cam;
+  updateCamBtn();
+  sendWs({ type: 'update', cam: app.self.cam });
+  renderParticipants();
+  showToast(app.self.cam ? 'Камера включена' : 'Камера выключена');
+});
+
+/* ---------- ДЕМОНСТРАЦИЯ ЭКРАНА ---------- */
+$('btn-screen').addEventListener('click', async () => {
+  if (!app.self.screen) {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 30 },
+        audio: false,
+      });
+      app.screenStream = stream;
+      const screenTrack = stream.getVideoTracks()[0];
+
+      app.peers.forEach(pc => {
+        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender) sender.replaceTrack(screenTrack);
+      });
+
+      screenTrack.onended = () => stopScreenShare();
+
+      const selfTile = stage.querySelector(`.tile[data-id="${app.self.id}"]`);
+      if (selfTile) {
+        const v = selfTile.querySelector('video');
+        v.srcObject = stream;
+        v.classList.remove('mirror');
+      }
+
+      app.self.screen = true;
+      $('btn-screen').classList.add('off');
+      sendWs({ type: 'update', screen: true });
+      renderParticipants();
+      showToast('Демонстрация начата');
+    } catch (e) {
+      if (e.name !== 'NotAllowedError') console.warn(e);
+    }
+  } else {
+    stopScreenShare();
+  }
+});
+
+function stopScreenShare() {
+  if (app.screenStream) {
+    app.screenStream.getTracks().forEach(t => t.stop());
+    app.screenStream = null;
+  }
+  if (app.camTrack) {
+    app.peers.forEach(pc => {
+      const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (sender) sender.replaceTrack(app.camTrack);
+    });
+  }
+  const selfTile = stage.querySelector(`.tile[data-id="${app.self.id}"]`);
+  if (selfTile) {
+    const v = selfTile.querySelector('video');
+    v.srcObject = app.localStream;
+    v.classList.add('mirror');
+  }
+  app.self.screen = false;
+  $('btn-screen').classList.remove('off');
+  sendWs({ type: 'update', screen: false });
+  renderParticipants();
+  showToast('Демонстрация остановлена');
+}
+
+/* ---------- ПАНЕЛЬ УСТРОЙСТВ ---------- */
+$('btn-devices').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('panel').classList.toggle('open');
+});
+document.addEventListener('click', (e) => {
+  if (!$('panel').contains(e.target) && e.target !== $('btn-devices')) {
+    $('panel').classList.remove('open');
+  }
+});
+
+$('select-mic').addEventListener('change', async (e) => {
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: { exact: e.target.value } },
+    });
+    const newTrack = newStream.getAudioTracks()[0];
+    newTrack.enabled = app.self.mic;
+    app.peers.forEach(pc => {
+      const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+      if (sender) sender.replaceTrack(newTrack);
+    });
+    if (app.audioTrack) app.audioTrack.stop();
+    app.audioTrack = newTrack;
+    showToast('Микрофон изменён');
+  } catch { showToast('Ошибка смены микрофона'); }
+});
+
+$('select-cam').addEventListener('change', async (e) => {
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: e.target.value }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    });
+    const newTrack = newStream.getVideoTracks()[0];
+    newTrack.enabled = app.self.cam;
+    app.peers.forEach(pc => {
+      const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (sender && !app.self.screen) sender.replaceTrack(newTrack);
+    });
+    if (app.camTrack) app.camTrack.stop();
+    app.camTrack = newTrack;
+    if (!app.self.screen) {
+      const selfTile = stage.querySelector(`.tile[data-id="${app.self.id}"]`);
+      if (selfTile) selfTile.querySelector('video').srcObject = app.localStream;
+    }
+    showToast('Камера изменена');
+  } catch { showToast('Ошибка смены камеры'); }
+});
+
+$('select-output').addEventListener('change', () => showToast('Устройство вывода изменено'));
+
+/* ---------- ЗАВЕРШЕНИЕ ЗВОНКА ---------- */
+$('btn-leave').addEventListener('click', () => {
+  if (confirm('Завершить звонок?')) endCall();
+});
+
+function endCall() {
+  if (!app.inCall) return;
+  app.inCall = false;
+
+  sendWs({ type: 'leave' });
+  app.peers.forEach(pc => { try { pc.close(); } catch {} });
+  app.peers.clear();
+  app.pendingCandidates.clear();
+  app.participants.clear();
+
+  if (app.localStream) {
+    app.localStream.getTracks().forEach(t => t.stop());
+    app.localStream = null;
+  }
+  if (app.screenStream) {
+    app.screenStream.getTracks().forEach(t => t.stop());
+    app.screenStream = null;
+  }
+  app.audioTrack = null;
+  app.camTrack = null;
+
+  if (app.ws) { try { app.ws.close(); } catch {} app.ws = null; }
+
+  stopTimer();
+  stage.innerHTML = '';
+
+  call.classList.remove('active');
+  lobby.classList.remove('hidden');
+  $('panel').classList.remove('open');
+  $('btn-screen').classList.remove('off');
+  app.self.screen = false;
+
+  $('preview-video').srcObject = null;
+  $('preview-video').classList.remove('on');
+  $('lobby-avatar').style.opacity = '1';
+  initPreview();
+
+  showToast('Звонок завершён');
+}
+
+/* ---------- ТАЙМЕР ---------- */
+function startTimer() {
+  app.startedAt = Date.now();
+  stopTimer();
+  app.timerInterval = setInterval(() => {
+    const s = Math.floor((Date.now() - app.startedAt) / 1000);
+    const m = String(Math.floor(s / 60)).padStart(2, '0');
+    const ss = String(s % 60).padStart(2, '0');
+    $('timer').textContent = `${m}:${ss}`;
+  }, 500);
+  $('timer').textContent = '00:00';
+}
+function stopTimer() {
+  if (app.timerInterval) clearInterval(app.timerInterval);
+  app.timerInterval = null;
+}
+
+/* ---------- АНИМАЦИЯ "ГОВОРИТ" ---------- */
+setInterval(() => {
+  if (!app.inCall) return;
+  stage.querySelectorAll('.tile').forEach(t => {
+    if (Math.random() < 0.08) {
+      t.classList.add('speaking');
+      setTimeout(() => t.classList.remove('speaking'), 1200);
+    }
+  });
+}, 2000);
+
+/* ---------- СТАРТ ---------- */
+initPreview();
+navigator.mediaDevices.addEventListener?.('devicechange', populateDevices);
+window.addEventListener('beforeunload', () => {
+  if (app.inCall) sendWs({ type: 'leave' });
+});
+</script>
+</body>
+</html>
