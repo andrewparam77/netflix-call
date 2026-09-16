@@ -87,6 +87,13 @@
   .topbar .conn { font-size: 11px; color: #666; }
   .topbar .conn.online { color: #2ecc71; }
   .topbar .time { font-size: 13px; color: #aaa; font-variant-numeric: tabular-nums; }
+  .topbar .admin-badge {
+    display: none;
+    background: linear-gradient(135deg,#f5a623,#e50914);
+    font-size: 10px; font-weight: 700; padding: 4px 10px;
+    border-radius: 4px; letter-spacing: 1px;
+  }
+  .topbar .admin-badge.on { display: inline-block; }
 
   .stage {
     flex: 1; display: grid;
@@ -106,6 +113,7 @@
   .tile.leaving { animation: tileOut .3s forwards; }
   @keyframes tileOut { to { opacity: 0; transform: scale(.9); } }
   .tile.speaking { border-color: #2ecc71; box-shadow: 0 0 0 2px rgba(46,204,113,.25); }
+  .tile.admin-hover { border-color: #f5a623; }
 
   .tile video {
     position: absolute; inset: 0; width: 100%; height: 100%;
@@ -135,6 +143,7 @@
   }
   .tile .name .dot { width: 6px; height: 6px; border-radius: 50%; background: #2ecc71; }
   .tile .name.muted .dot { background: #e50914; }
+  .tile .name .crown { font-size: 11px; }
   .tile .mic-off {
     position: absolute; top: 10px; right: 10px;
     background: rgba(229,9,20,.9); width: 26px; height: 26px;
@@ -152,6 +161,23 @@
     padding: 3px 8px; border-radius: 4px; z-index: 3; display: none;
   }
   .tile.sharing .screen-tag { display: block; }
+
+  /* ---- Админ-оверлей на плитке ---- */
+  .tile .admin-actions {
+    position: absolute; top: 10px; right: 10px;
+    display: none; gap: 6px; z-index: 5;
+  }
+  .tile.admin-mode:hover .admin-actions { display: flex; }
+  .admin-action-btn {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: rgba(0,0,0,.8); border: 1px solid #333;
+    color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; transition: all .15s;
+  }
+  .admin-action-btn:hover { background: #e50914; border-color: #e50914; }
+  .admin-action-btn.warn:hover { background: #f5a623; border-color: #f5a623; }
+  .admin-action-btn svg { width: 16px; height: 16px; fill: currentColor; }
 
   /* ---- CONTROLS ---- */
   .controls {
@@ -177,25 +203,134 @@
   .btn svg { width: 22px; height: 22px; fill: currentColor; }
   .btn.leave svg { width: 18px; height: 18px; }
 
-  .panel {
-    position: absolute; bottom: 90px; left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: #15151a; border: 1px solid #262630;
-    border-radius: 12px; padding: 16px; min-width: 320px;
-    box-shadow: 0 20px 60px rgba(0,0,0,.6);
-    opacity: 0; pointer-events: none;
-    transition: all .2s; z-index: 100;
+  /* ---- Настройки: плавающая кнопка справа внизу ---- */
+  .settings-fab {
+    position: fixed; right: 20px; bottom: 100px;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: #1c1c22; border: 1px solid #262630;
+    color: #fff; cursor: pointer; z-index: 150;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .2s;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
   }
-  .panel.open { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
-  .panel h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #777; margin-bottom: 8px; }
-  .panel h3:not(:first-child) { margin-top: 16px; }
-  .panel select {
+  .settings-fab:hover { background: #2a2a32; transform: rotate(45deg); }
+  .settings-fab svg { width: 22px; height: 22px; fill: currentColor; }
+  .settings-fab.admin { background: linear-gradient(135deg,#f5a623,#e50914); border-color: #f5a623; }
+
+  /* ---- Настройки: выезжающая панель ---- */
+  .settings-panel {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 360px; max-width: 90vw;
+    background: #15151a; border-left: 1px solid #262630;
+    z-index: 200;
+    transform: translateX(100%);
+    transition: transform .3s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column;
+    box-shadow: -20px 0 60px rgba(0,0,0,.6);
+  }
+  .settings-panel.open { transform: translateX(0); }
+
+  .settings-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px; border-bottom: 1px solid #1c1c22;
+  }
+  .settings-header h2 { font-size: 16px; font-weight: 600; }
+  .settings-header h2 span { color: #e50914; }
+  .settings-close {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: #1c1c22; border: none; color: #fff;
+    cursor: pointer; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .settings-close:hover { background: #e50914; }
+
+  .settings-body {
+    flex: 1; overflow-y: auto; padding: 20px;
+  }
+  .settings-section {
+    margin-bottom: 24px;
+  }
+  .settings-section h3 {
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 1px; color: #777;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .settings-section h3 .admin-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #f5a623; display: none;
+  }
+  .settings-section.admin h3 .admin-dot { display: block; }
+
+  .settings-select {
     width: 100%; background: #0b0b0f; color: #fff;
     border: 1px solid #262630; border-radius: 8px;
     padding: 10px 12px; font-size: 13px; outline: none; cursor: pointer;
+    margin-bottom: 8px;
   }
-  .panel select:focus { border-color: #e50914; }
+  .settings-select:focus { border-color: #e50914; }
 
+  .settings-input {
+    width: 100%; background: #0b0b0f; color: #fff;
+    border: 1px solid #262630; border-radius: 8px;
+    padding: 10px 12px; font-size: 13px; outline: none;
+  }
+  .settings-input:focus { border-color: #f5a623; }
+
+  .settings-btn {
+    width: 100%; background: #1c1c22; color: #fff;
+    border: 1px solid #262630; border-radius: 8px;
+    padding: 10px 12px; font-size: 13px; cursor: pointer;
+    transition: all .15s; margin-top: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .settings-btn:hover { background: #2a2a32; }
+  .settings-btn.danger { background: #e50914; border-color: #e50914; }
+  .settings-btn.danger:hover { background: #f6121d; }
+  .settings-btn.warn { background: #f5a623; border-color: #f5a623; color: #000; }
+  .settings-btn.warn:hover { background: #ffb733; }
+
+  .settings-hint {
+    font-size: 11px; color: #555; margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  /* Список участников в настройках для админа */
+  .admin-participants {
+    display: flex; flex-direction: column; gap: 6px;
+    max-height: 240px; overflow-y: auto;
+  }
+  .admin-participant {
+    display: flex; align-items: center; gap: 10px;
+    background: #0b0b0f; border: 1px solid #262630;
+    border-radius: 8px; padding: 8px 10px;
+  }
+  .admin-participant .p-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; flex-shrink: 0;
+  }
+  .admin-participant .p-info { flex: 1; min-width: 0; }
+  .admin-participant .p-name {
+    font-size: 13px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .admin-participant .p-name .crown { color: #f5a623; }
+  .admin-participant .p-status { font-size: 10px; color: #666; }
+  .admin-participant .p-actions {
+    display: flex; gap: 4px;
+  }
+  .admin-participant .p-btn {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: #1c1c22; border: none; color: #fff;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; transition: all .15s;
+  }
+  .admin-participant .p-btn:hover { background: #e50914; }
+  .admin-participant .p-btn.mute:hover { background: #f5a623; }
+
+  /* ---- Toast / Notice ---- */
   .toast {
     position: fixed; top: 70px; left: 50%;
     transform: translateX(-50%) translateY(-20px);
@@ -214,6 +349,19 @@
     animation: noticeIn .3s;
   }
   @keyframes noticeIn { from{opacity:0;transform:translateX(-50%) translateY(-10px)} }
+
+  .kicked-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.92);
+    z-index: 9999; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 20px; text-align: center;
+  }
+  .kicked-overlay h2 { color: #e50914; font-size: 24px; }
+  .kicked-overlay p { color: #888; font-size: 14px; max-width: 400px; }
+  .kicked-overlay button {
+    background: #e50914; color: #fff; border: none;
+    padding: 12px 24px; border-radius: 8px; font-size: 14px;
+    cursor: pointer; font-weight: 600;
+  }
 </style>
 </head>
 <body>
@@ -258,6 +406,7 @@
     <div class="topbar">
       <h1>СОЗВОН<span>комната #netflix-watch</span></h1>
       <div class="right">
+        <span class="admin-badge" id="admin-badge">👑 АДМИН</span>
         <div class="count"><span class="live"></span><span id="participant-count">1 участник</span></div>
         <div class="conn" id="conn-status">● offline</div>
         <div class="time" id="timer">00:00</div>
@@ -291,6 +440,86 @@
     </div>
   </div>
 
+  <!-- Плавающая кнопка настроек (справа внизу) -->
+  <button class="settings-fab" id="settings-fab" title="Настройки">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87c-.12.21-.07.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+  </button>
+
+  <!-- Выезжающая панель настроек -->
+  <div class="settings-panel" id="settings-panel">
+    <div class="settings-header">
+      <h2>⚙️ <span>Настройки</span></h2>
+      <button class="settings-close" id="settings-close">×</button>
+    </div>
+
+    <div class="settings-body">
+      <!-- Устройства -->
+      <div class="settings-section">
+        <h3>🎤 Микрофон</h3>
+        <select class="settings-select" id="settings-mic"></select>
+      </div>
+
+      <div class="settings-section">
+        <h3>🎧 Динамики / наушники</h3>
+        <select class="settings-select" id="settings-output"></select>
+      </div>
+
+      <div class="settings-section">
+        <h3>📹 Камера</h3>
+        <select class="settings-select" id="settings-cam"></select>
+      </div>
+
+      <!-- Админ-секция -->
+      <div class="settings-section admin" id="admin-section">
+        <h3>
+          <span class="admin-dot"></span>
+          👑 Админ-панель
+        </h3>
+
+        <!-- Форма входа -->
+        <div id="admin-login-form">
+          <input type="password" class="settings-input" id="admin-password"
+                 placeholder="Пароль администратора" autocomplete="off">
+          <button class="settings-btn warn" id="admin-login-btn">
+            🔑 Войти как админ
+          </button>
+          <p class="settings-hint">Введите пароль для получения прав управления.</p>
+        </div>
+
+        <!-- Панель управления (после логина) -->
+        <div id="admin-controls" style="display:none;">
+          <p class="settings-hint" style="margin-bottom: 12px; color: #f5a623;">
+            ✅ Вы вошли как администратор
+          </p>
+
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #777; margin-bottom: 8px;">
+            Участники
+          </div>
+
+          <div class="admin-participants" id="admin-participants"></div>
+
+          <button class="settings-btn danger" id="admin-end-all" style="margin-top: 12px;">
+            🛑 Завершить звонок для всех
+          </button>
+
+          <button class="settings-btn" id="admin-logout" style="margin-top: 6px;">
+            Выйти из админки
+          </button>
+        </div>
+      </div>
+
+      <!-- Инфо -->
+      <div class="settings-section">
+        <h3>ℹ️ О звонке</h3>
+        <p class="settings-hint">
+          Комната: <b style="color:#e50914;">#netflix-watch</b><br>
+          Участников: <span id="settings-count">1</span><br>
+          Длительность: <span id="settings-timer">00:00</span>
+        </p>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
 <script>
@@ -300,6 +529,9 @@ const ICON = {
   micOff: '<svg viewBox="0 0 24 24"><path d="M19 11h-1.7A5.5 5.5 0 0 1 12 16.5c-.3 0-.5 0-.8-.05L9.5 18.2A7 7 0 0 0 11 18.9V21h2v-2.1c2.9-.5 5-3 5-5.9h-2zM4.27 3L3 4.27l6.13 6.13V11a2.9 2.9 0 0 0 2.9 2.9c.32 0 .63-.05.92-.15L15.7 16.5A7 7 0 0 1 12 17.5a5 5 0 0 1-5-5H5a7 7 0 0 0 6 6.92V21h2v-2.1c.78-.14 1.5-.42 2.15-.8L19.73 22 21 20.73 4.27 3z"/></svg>',
   camOn:  '<svg viewBox="0 0 24 24"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>',
   camOff: '<svg viewBox="0 0 24 24"><path d="M21 6.5l-4 4V7a1 1 0 0 0-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/></svg>',
+  mute:   '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>',
+  unmute: '<svg viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>',
+  kick:   '<svg viewBox="0 0 24 24"><path d="M10 17l5-5-5-5v10zm-7-5a9 9 0 1 1 18 0 9 9 0 0 1-18 0zm9-7a7 7 0 1 0 0 14 7 7 0 0 0 0-14z"/></svg>',
 };
 
 /* ---------- СОСТОЯНИЕ ---------- */
@@ -307,6 +539,7 @@ const app = {
   inCall: false,
   ws: null,
   room: 'netflix-watch',
+  isAdmin: false,
   self: {
     id: 'u-' + Math.random().toString(36).slice(2, 8),
     name: '',
@@ -314,6 +547,7 @@ const app = {
     cam: false,
     screen: false,
     color: '#e50914',
+    isAdmin: false,
   },
   localStream: null,
   audioTrack: null,
@@ -371,17 +605,14 @@ let previewStream = null;
 let previewCamStream = null;
 
 async function initPreview() {
-  // Запрашиваем ТОЛЬКО микрофон — камера не трогается пока не включат
   try {
     previewStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (e) {
     showToast('Нет доступа к микрофону');
     return;
   }
-
   const a = previewStream.getAudioTracks()[0];
   if (a) a.enabled = true;
-
   await populateDevices();
 }
 
@@ -396,6 +627,9 @@ async function populateDevices() {
     fillSelect($('select-mic'), mics, 'Микрофон');
     fillSelect($('select-output'), spks, 'Устройство вывода');
     fillSelect($('select-cam'), cams, 'Камера');
+    fillSelect($('settings-mic'), mics, 'Микрофон');
+    fillSelect($('settings-output'), spks, 'Устройство вывода');
+    fillSelect($('settings-cam'), cams, 'Камера');
   } catch (e) { console.warn(e); }
 }
 
@@ -434,10 +668,8 @@ $('lobby-cam').addEventListener('click', async () => {
   $('lobby-cam').innerHTML = lobbyState.cam ? ICON.camOn : ICON.camOff;
 
   if (lobbyState.cam) {
-    // ВКЛючаем — только сейчас запрашиваем камеру
     try {
       previewCamStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      const camTrack = previewCamStream.getVideoTracks()[0];
       $('preview-video').srcObject = previewCamStream;
       $('preview-video').classList.add('on');
       $('lobby-avatar').style.opacity = '0';
@@ -448,7 +680,6 @@ $('lobby-cam').addEventListener('click', async () => {
       showToast('Нет доступа к камере');
     }
   } else {
-    // ВЫКЛючаем — останавливаем трек, индикатор гаснет
     if (previewCamStream) {
       previewCamStream.getTracks().forEach(t => t.stop());
       previewCamStream = null;
@@ -471,21 +702,13 @@ $('btn-start').addEventListener('click', async () => {
   app.self.cam = lobbyState.cam;
   app.self.color = randomColor(name);
 
-  // Останавливаем превью
-  if (previewStream) {
-    previewStream.getTracks().forEach(t => t.stop());
-    previewStream = null;
-  }
-  if (previewCamStream) {
-    previewCamStream.getTracks().forEach(t => t.stop());
-    previewCamStream = null;
-  }
+  if (previewStream) { previewStream.getTracks().forEach(t => t.stop()); previewStream = null; }
+  if (previewCamStream) { previewCamStream.getTracks().forEach(t => t.stop()); previewCamStream = null; }
 
   await joinCall();
 });
 
 async function joinCall() {
-  // Аудио — всегда. Видео — только если камера включена в лобби
   const constraints = {
     audio: { echoCancellation: true, noiseSuppression: true },
   };
@@ -496,7 +719,6 @@ async function joinCall() {
   try {
     app.localStream = await navigator.mediaDevices.getUserMedia(constraints);
   } catch (e) {
-    // Если с видео не получилось — только аудио
     try {
       app.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       lobbyState.cam = false;
@@ -515,6 +737,7 @@ async function joinCall() {
   app.inCall = true;
   lobby.classList.add('hidden');
   call.classList.add('active');
+  $('settings-fab').style.display = 'flex';
   updateMicBtn();
   updateCamBtn();
   renderParticipants();
@@ -565,12 +788,14 @@ async function handleWsMessage(msg) {
         await createOffer(p.id);
       }
       renderParticipants();
+      updateAdminList();
       break;
     }
     case 'participant-joined': {
       addParticipantMeta(msg);
       renderParticipants();
       showJoinNotice(`${msg.name} присоединился(ась)`);
+      updateAdminList();
       break;
     }
     case 'participant-updated': {
@@ -580,14 +805,72 @@ async function handleWsMessage(msg) {
       if (msg.cam !== undefined) p.cam = msg.cam;
       if (msg.screen !== undefined) p.screen = msg.screen;
       renderParticipants();
+      updateAdminList();
       break;
     }
     case 'participant-left':
       removeParticipant(msg.id);
+      updateAdminList();
       break;
     case 'signal':
       await handleSignal(msg.from, msg.data);
       break;
+
+    /* --- Админ-события --- */
+    case 'admin-granted':
+      app.isAdmin = true;
+      app.self.isAdmin = true;
+      $('admin-badge').classList.add('on');
+      $('settings-fab').classList.add('admin');
+      $('admin-login-form').style.display = 'none';
+      $('admin-controls').style.display = 'block';
+      renderParticipants();
+      updateAdminList();
+      showToast('👑 Права администратора получены');
+      break;
+
+    case 'admin-denied':
+      showToast('❌ Неверный пароль');
+      $('admin-password').value = '';
+      break;
+
+    case 'force-mute': {
+      if (msg.value) {
+        app.self.mic = false;
+        if (app.audioTrack) app.audioTrack.enabled = false;
+        updateMicBtn();
+        renderParticipants();
+        showToast('🔇 Администратор выключил ваш микрофон');
+      }
+      break;
+    }
+
+    case 'kicked': {
+      // Показываем оверлей
+      const overlay = document.createElement('div');
+      overlay.className = 'kicked-overlay';
+      overlay.innerHTML = `
+        <h2>🚫 Вас исключили</h2>
+        <p>${escapeHtml(msg.reason || 'Администратор исключил вас из звонка')}</p>
+        <button onclick="location.reload()">Вернуться</button>
+      `;
+      document.body.appendChild(overlay);
+      setTimeout(() => endCall(), 500);
+      break;
+    }
+
+    case 'call-ended': {
+      const overlay = document.createElement('div');
+      overlay.className = 'kicked-overlay';
+      overlay.innerHTML = `
+        <h2>🛑 Звонок завершён</h2>
+        <p>${escapeHtml(msg.reason || 'Администратор завершил звонок')}</p>
+        <button onclick="location.reload()">Вернуться</button>
+      `;
+      document.body.appendChild(overlay);
+      setTimeout(() => endCall(), 500);
+      break;
+    }
   }
 }
 
@@ -599,6 +882,7 @@ function addParticipantMeta(p) {
     mic: p.mic ?? true,
     cam: p.cam ?? false,
     screen: p.screen ?? false,
+    isAdmin: p.isAdmin || false,
     color: randomColor(p.name || p.id),
     stream: null,
   });
@@ -684,6 +968,7 @@ function renderParticipants() {
 
   const total = 1 + app.participants.size;
   $('participant-count').textContent = plural(total, 'участник', 'участника', 'участников');
+  $('settings-count').textContent = total;
 }
 
 function upsertSelfTile() {
@@ -697,7 +982,7 @@ function upsertSelfTile() {
       <div class="avatar-fallback hidden"><div class="avatar"></div></div>
       <div class="you-tag">ВЫ</div>
       <div class="mic-off" style="display:none;">🔇</div>
-      <div class="name"><span class="dot"></span><span class="name-text"></span></div>
+      <div class="name"><span class="dot"></span><span class="crown"></span><span class="name-text"></span></div>
     `;
     const v = tile.querySelector('video');
     v.srcObject = app.localStream;
@@ -711,6 +996,7 @@ function upsertSelfTile() {
     screen: app.self.screen,
     color: app.self.color,
     isSelf: true,
+    isAdmin: app.self.isAdmin,
   });
 }
 
@@ -724,9 +1010,29 @@ function upsertPeerTile(p) {
       <video autoplay playsinline></video>
       <div class="avatar-fallback hidden"><div class="avatar"></div></div>
       <div class="screen-tag">ЭКРАН</div>
+      <div class="admin-actions">
+        <button class="admin-action-btn mute" data-action="mute" title="Заглушить">${ICON.mute}</button>
+        <button class="admin-action-btn" data-action="kick" title="Исключить">${ICON.kick}</button>
+      </div>
       <div class="mic-off" style="display:none;">🔇</div>
-      <div class="name"><span class="dot"></span><span class="name-text"></span></div>
+      <div class="name"><span class="dot"></span><span class="crown"></span><span class="name-text"></span></div>
     `;
+    // Обработчики админ-кнопок
+    tile.querySelectorAll('.admin-action-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const action = btn.dataset.action;
+        if (action === 'kick') {
+          if (confirm(`Исключить ${p.name} из звонка?`)) {
+            sendWs({ type: 'admin-kick', targetId: p.id });
+            showToast(`${p.name} исключён`);
+          }
+        } else if (action === 'mute') {
+          sendWs({ type: 'admin-mute', targetId: p.id, value: true });
+          showToast(`${p.name} заглушён`);
+        }
+      });
+    });
     stage.appendChild(tile);
   }
   if (p.stream) {
@@ -739,15 +1045,19 @@ function upsertPeerTile(p) {
     cam: p.cam,
     screen: p.screen,
     color: p.color,
+    isAdmin: p.isAdmin,
   });
+  // Включаем режим админа для hover-эффектов
+  tile.classList.toggle('admin-mode', app.isAdmin && p.id !== app.self.id);
 }
 
-function updateTile(tile, { name, mic, cam, screen, color, isSelf = false }) {
+function updateTile(tile, { name, mic, cam, screen, color, isSelf = false, isAdmin = false }) {
   const video = tile.querySelector('video');
   const fallback = tile.querySelector('.avatar-fallback');
   const avatar = tile.querySelector('.avatar');
   const nameEl = tile.querySelector('.name');
   const nameText = tile.querySelector('.name-text');
+  const crown = tile.querySelector('.crown');
   const micOff = tile.querySelector('.mic-off');
 
   if (avatar) {
@@ -762,6 +1072,7 @@ function updateTile(tile, { name, mic, cam, screen, color, isSelf = false }) {
   video.classList.toggle('mirror', isSelf && !screen);
 
   nameText.textContent = escapeHtml(name) + (isSelf ? ' (вы)' : '');
+  if (crown) crown.textContent = isAdmin ? '👑 ' : '';
   nameEl.classList.toggle('muted', !mic);
   micOff.style.display = mic ? 'none' : 'flex';
   tile.classList.toggle('sharing', !!screen);
@@ -793,6 +1104,88 @@ function removeParticipant(id) {
   renderParticipants();
 }
 
+/* ---------- АДМИН-ПАНЕЛЬ ---------- */
+function updateAdminList() {
+  const list = $('admin-participants');
+  if (!list) return;
+  list.innerHTML = '';
+
+  app.participants.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'admin-participant';
+    el.innerHTML = `
+      <div class="p-avatar" style="background: linear-gradient(135deg, ${p.color}, #000);">
+        ${initials(p.name)}
+      </div>
+      <div class="p-info">
+        <div class="p-name">
+          ${p.isAdmin ? '<span class="crown">👑 </span>' : ''}
+          ${escapeHtml(p.name)}
+        </div>
+        <div class="p-status">${p.mic ? '🎤 микрофон вкл' : '🔇 микрофон выкл'} · ${p.cam ? '📹 камера вкл' : '📷 камера выкл'}</div>
+      </div>
+      <div class="p-actions">
+        <button class="p-btn mute" data-action="mute" data-id="${p.id}" title="Заглушить">${ICON.mute}</button>
+        <button class="p-btn" data-action="kick" data-id="${p.id}" title="Исключить">${ICON.kick}</button>
+      </div>
+    `;
+    el.querySelectorAll('.p-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        const id = btn.dataset.id;
+        const target = app.participants.get(id);
+        if (!target) return;
+        if (action === 'kick') {
+          if (confirm(`Исключить ${target.name} из звонка?`)) {
+            sendWs({ type: 'admin-kick', targetId: id });
+            showToast(`${target.name} исключён`);
+          }
+        } else if (action === 'mute') {
+          sendWs({ type: 'admin-mute', targetId: id, value: true });
+          showToast(`${target.name} заглушён`);
+        }
+      });
+    });
+    list.appendChild(el);
+  });
+
+  if (app.participants.size === 0) {
+    list.innerHTML = '<p class="settings-hint" style="text-align:center; padding: 12px;">Пока никого нет</p>';
+  }
+}
+
+/* Обработчики админ-формы */
+$('admin-login-btn').addEventListener('click', () => {
+  const pw = $('admin-password').value;
+  if (!pw) { showToast('Введите пароль'); return; }
+  sendWs({ type: 'admin-login', password: pw });
+});
+
+$('admin-password').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('admin-login-btn').click();
+});
+
+$('admin-logout').addEventListener('click', () => {
+  app.isAdmin = false;
+  app.self.isAdmin = false;
+  $('admin-badge').classList.remove('on');
+  $('settings-fab').classList.remove('admin');
+  $('admin-login-form').style.display = 'block';
+  $('admin-controls').style.display = 'none';
+  $('admin-password').value = '';
+  // Убираем admin-mode со всех плиток
+  stage.querySelectorAll('.tile').forEach(t => t.classList.remove('admin-mode'));
+  renderParticipants();
+  showToast('Вы вышли из админки');
+});
+
+$('admin-end-all').addEventListener('click', () => {
+  if (!app.isAdmin) return;
+  if (confirm('Завершить звонок для ВСЕХ участников?')) {
+    sendWs({ type: 'admin-end-all' });
+  }
+});
+
 /* ---------- КНОПКИ ---------- */
 function updateMicBtn() {
   const b = $('btn-mic');
@@ -820,7 +1213,6 @@ $('btn-cam').addEventListener('click', async () => {
   const wantOn = !app.self.cam;
 
   if (wantOn && !app.camTrack) {
-    // Камеры нет — запрашиваем сейчас
     try {
       const camStream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -829,7 +1221,6 @@ $('btn-cam').addEventListener('click', async () => {
       app.camTrack = newTrack;
       app.localStream.addTrack(newTrack);
 
-      // Добавляем трек во все peer connections и делаем renegotiation
       for (const [peerId, pc] of app.peers) {
         pc.addTrack(newTrack, app.localStream);
         try {
@@ -839,7 +1230,6 @@ $('btn-cam').addEventListener('click', async () => {
         } catch (e) { console.warn('renegotiate failed', e); }
       }
 
-      // Обновляем своё локальное превью
       const selfTile = stage.querySelector(`.tile[data-id="${app.self.id}"]`);
       if (selfTile) selfTile.querySelector('video').srcObject = app.localStream;
     } catch (e) {
@@ -918,7 +1308,7 @@ function stopScreenShare() {
   showToast('Демонстрация остановлена');
 }
 
-/* ---------- ПАНЕЛЬ УСТРОЙСТВ ---------- */
+/* ---------- ПАНЕЛЬ УСТРОЙСТВ (старая, из нижнего меню) ---------- */
 $('btn-devices').addEventListener('click', (e) => {
   e.stopPropagation();
   $('panel').classList.toggle('open');
@@ -929,6 +1319,67 @@ document.addEventListener('click', (e) => {
   }
 });
 
+/* ---------- ПАНЕЛЬ НАСТРОЕК (новая, справа) ---------- */
+$('settings-fab').addEventListener('click', () => {
+  $('settings-panel').classList.toggle('open');
+  updateAdminList();
+  updateSettingsTimer();
+});
+$('settings-close').addEventListener('click', () => {
+  $('settings-panel').classList.remove('open');
+});
+
+function updateSettingsTimer() {
+  if (app.inCall) {
+    const s = Math.floor((Date.now() - app.startedAt) / 1000);
+    const m = String(Math.floor(s / 60)).padStart(2, '0');
+    const ss = String(s % 60).padStart(2, '0');
+    $('settings-timer').textContent = `${m}:${ss}`;
+  }
+}
+
+/* Смена устройств из панели настроек */
+$('settings-mic').addEventListener('change', async (e) => {
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: { exact: e.target.value } },
+    });
+    const newTrack = newStream.getAudioTracks()[0];
+    newTrack.enabled = app.self.mic;
+    app.peers.forEach(pc => {
+      const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+      if (sender) sender.replaceTrack(newTrack);
+    });
+    if (app.audioTrack) app.audioTrack.stop();
+    app.audioTrack = newTrack;
+    showToast('Микрофон изменён');
+  } catch { showToast('Ошибка смены микрофона'); }
+});
+
+$('settings-cam').addEventListener('change', async (e) => {
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: e.target.value }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    });
+    const newTrack = newStream.getVideoTracks()[0];
+    newTrack.enabled = app.self.cam;
+    app.peers.forEach(pc => {
+      const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (sender && !app.self.screen) sender.replaceTrack(newTrack);
+    });
+    if (app.camTrack) app.camTrack.stop();
+    app.camTrack = newTrack;
+    if (!app.self.screen) {
+      const selfTile = stage.querySelector(`.tile[data-id="${app.self.id}"]`);
+      if (selfTile) selfTile.querySelector('video').srcObject = app.localStream;
+    }
+    showToast('Камера изменена');
+  } catch { showToast('Ошибка смены камеры'); }
+});
+
+$('settings-output').addEventListener('change', () => showToast('Устройство вывода изменено'));
+
+/* Старые селекты (из нижней панели) */
 $('select-mic').addEventListener('change', async (e) => {
   try {
     const newStream = await navigator.mediaDevices.getUserMedia({
@@ -1002,9 +1453,18 @@ function endCall() {
 
   call.classList.remove('active');
   lobby.classList.remove('hidden');
-  $('panel').classList.remove('open');
+  $('settings-panel').classList.remove('open');
   $('btn-screen').classList.remove('off');
   app.self.screen = false;
+
+  // Сброс админки
+  app.isAdmin = false;
+  app.self.isAdmin = false;
+  $('admin-badge').classList.remove('on');
+  $('settings-fab').classList.remove('admin');
+  $('admin-login-form').style.display = 'block';
+  $('admin-controls').style.display = 'none';
+  $('admin-password').value = '';
 
   $('preview-video').srcObject = null;
   $('preview-video').classList.remove('on');
@@ -1023,6 +1483,7 @@ function startTimer() {
     const m = String(Math.floor(s / 60)).padStart(2, '0');
     const ss = String(s % 60).padStart(2, '0');
     $('timer').textContent = `${m}:${ss}`;
+    updateSettingsTimer();
   }, 500);
   $('timer').textContent = '00:00';
 }
@@ -1043,6 +1504,7 @@ setInterval(() => {
 }, 2000);
 
 /* ---------- СТАРТ ---------- */
+$('settings-fab').style.display = 'none';
 initPreview();
 navigator.mediaDevices.addEventListener?.('devicechange', populateDevices);
 window.addEventListener('beforeunload', () => {
